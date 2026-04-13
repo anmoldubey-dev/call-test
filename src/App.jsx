@@ -98,12 +98,26 @@ export default function App() {
     sock.onopen = () => {
       sock.send(JSON.stringify({ lang, llm, voice, phone: 'web-test' }))
 
-      // Start looping background room audio
-      const bg = new Audio(`${BACKEND}/assets/call_centre_room.wav`)
-      bg.loop = true
-      bg.volume = 0.18
-      bg.play().catch(() => {})
-      bgRef.current = bg
+      // Loop bg room audio through AudioContext (bypasses autoplay block)
+      fetch(`${BACKEND}/assets/call_centre_room.wav`, { headers: HEADERS })
+        .then(r => r.arrayBuffer())
+        .then(buf => audioCtx.decodeAudioData(buf))
+        .then(decoded => {
+          if (audioCtx.state === 'closed') return
+          const gain = audioCtx.createGain()
+          gain.gain.value = 0.18
+          gain.connect(audioCtx.destination)
+          const loop = () => {
+            if (audioCtx.state === 'closed') return
+            const src = audioCtx.createBufferSource()
+            src.buffer = decoded
+            src.connect(gain)
+            src.onended = loop
+            src.start()
+            bgRef.current = src
+          }
+          loop()
+        }).catch(() => {})
 
       const src       = audioCtx.createMediaStreamSource(mic)
       const processor = audioCtx.createScriptProcessor(4096, 1, 1)
@@ -149,7 +163,7 @@ export default function App() {
     streamRef.current = null
     try { ctxRef.current?.close() } catch {}
     ctxRef.current = null
-    if (bgRef.current) { bgRef.current.pause(); bgRef.current = null }
+    try { bgRef.current?.stop() } catch {} bgRef.current = null
     wsRef.current = null
     playingRef.current = false
     setStatus('idle')
