@@ -52,6 +52,7 @@ export default function App() {
   const streamRef = useRef(null)
   const chatRef   = useRef(null)
   const playingRef = useRef(false)
+  const bgRef     = useRef(null)
 
   // Load voices
   useEffect(() => {
@@ -96,6 +97,14 @@ export default function App() {
 
     sock.onopen = () => {
       sock.send(JSON.stringify({ lang, llm, voice, phone: 'web-test' }))
+
+      // Start looping background room audio
+      const bg = new Audio(`${BACKEND}/assets/call_centre_room.wav`)
+      bg.loop = true
+      bg.volume = 0.18
+      bg.play().catch(() => {})
+      bgRef.current = bg
+
       const src       = audioCtx.createMediaStreamSource(mic)
       const processor = audioCtx.createScriptProcessor(4096, 1, 1)
       procRef.current = processor
@@ -140,6 +149,7 @@ export default function App() {
     streamRef.current = null
     try { ctxRef.current?.close() } catch {}
     ctxRef.current = null
+    if (bgRef.current) { bgRef.current.pause(); bgRef.current = null }
     wsRef.current = null
     playingRef.current = false
     setStatus('idle')
