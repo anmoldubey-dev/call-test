@@ -380,6 +380,12 @@ export default function App() {
   }
 
   function cleanup() {
+    // Release agent slot so queue opens up for next caller
+    if (routing?.session_id && routing?.voice) {
+      fetch(`${BACKEND}/ivr/release-slot?session_id=${routing.session_id}&voice=${encodeURIComponent(routing.voice)}`, {
+        method: 'POST', headers: HEADERS,
+      }).catch(() => {})
+    }
     try { procRef.current?.disconnect() } catch {}
     procRef.current = null
     streamRef.current?.getTracks().forEach(t => t.stop())
