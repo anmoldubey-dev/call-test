@@ -3,6 +3,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://anteriorly-digestional-laquita.ngrok-free.dev/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
