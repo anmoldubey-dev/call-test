@@ -149,3 +149,59 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
   aside { width: 100%; border-right: none; border-bottom: 1px solid var(--border); }
   .body { flex-direction: column; }
 }
+
+/* ── IVR Panel ───────────────────────── */
+.ivr-panel {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; flex: 1; padding: 32px;
+  text-align: center;
+}
+.ivr-title { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+.ivr-desc  { font-size: 0.88rem; color: var(--muted); max-width: 340px; line-height: 1.5; }
+.btn-ivr   { background: var(--accent); color: #fff; padding: 12px 28px; border-radius: 10px; border: none; font-size: 0.95rem; font-weight: 700; cursor: pointer; width: 220px; }
+.btn-ivr:hover { opacity: 0.88; }
+.btn-skip  { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 8px 20px; border-radius: 8px; font-size: 0.82rem; cursor: pointer; }
+.btn-skip:hover { color: var(--text); border-color: var(--muted); }
+.btn-call-manual { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+.ivr-status {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  font-size: 1rem; color: var(--text);
+}
+.ivr-status.listening { color: var(--red); }
+.pulse-dot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1s infinite;
+}
+.pulse-dot.red    { background: var(--red); }
+.pulse-dot.orange { background: var(--amber); }
+
+.ivr-tx {
+  font-size: 0.85rem; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 12px; max-width: 320px;
+  font-style: italic; margin-top: 4px;
+}
+.ivr-result {
+  display: flex; flex-direction: column; gap: 8px;
+  background: var(--surface2); border: 1px solid #22c55e44;
+  border-radius: 12px; padding: 18px 24px; min-width: 280px;
+}
+.ivr-result-title { font-size: 1rem; font-weight: 700; color: var(--green); margin-bottom: 4px; }
+.ivr-result-row   { display: flex; justify-content: space-between; font-size: 0.82rem; gap: 12px; }
+.ivr-result-row span { color: var(--muted); }
+.ivr-result-row strong { color: var(--text); }
+.ivr-connecting { font-size: 0.8rem; color: var(--amber); margin-top: 4px; animation: pulse 1s infinite; }
+.ivr-error { font-size: 0.82rem; color: var(--red); background: #ef444420; border: 1px solid #ef444440; border-radius: 8px; padding: 8px 14px; max-width: 320px; }
+
+/* ── Routing badge in sidebar ────────── */
+.routing-badge {
+  background: var(--surface2); border: 1px solid #7c6fff44;
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.routing-badge-title { font-size: 0.75rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.routing-badge-row   { display: flex; gap: 6px; font-size: 0.75rem; }
+.routing-badge-row span { color: var(--muted); }
+.routing-badge-row strong { color: var(--text); }
