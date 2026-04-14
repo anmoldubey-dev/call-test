@@ -38,6 +38,7 @@ export default function OutboundCallNotification({ onAccept }) {
   // ---------------------------------------------------------------
   const { user } = useAuth();
   const agentEmail = user?.email || user?.id || '';
+  const agentDept  = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}').department || ''; } catch { return ''; } })();
 
   const [notifications, setNotifications] = useState([]);
   const wsRef = useRef(null);
@@ -68,8 +69,8 @@ export default function OutboundCallNotification({ onAccept }) {
         try {
           const msg = JSON.parse(evt.data);
 
-          // Logic Branch -> outbound_callback: Injects new request into the local notification registry
-          if (msg.type === 'outbound_callback' && msg.target_agent === agentEmail) {
+          // Logic Branch -> outbound_callback: Show if same department (or no dept filter)
+          if (msg.type === 'outbound_callback' && (!agentDept || !msg.department || msg.department === agentDept)) {
             setNotifications(prev => {
               if (prev.some(n => n.outbound_id === msg.outbound_id)) return prev;
               if (audioRef.current) audioRef.current.play().catch(() => { });
