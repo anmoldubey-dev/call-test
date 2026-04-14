@@ -198,11 +198,13 @@ export default function App() {
   const [lang,     setLang]     = useState('en')
   const [voice,    setVoice]    = useState('')
   const [llm,      setLlm]      = useState('ollama')
-  const [status,   setStatus]   = useState('idle')    // idle|ivr|connecting|active
+  const [status,   setStatus]   = useState('idle')    // idle|email|ivr|connecting|active|queued
   const [msgs,     setMsgs]     = useState([])
   const [agent,    setAgent]    = useState('Agent')
   const [error,    setError]    = useState('')
-  const [routing,  setRouting]  = useState(null)      // routing decision from IVR
+  const [routing,  setRouting]  = useState(null)
+  const [email,    setEmail]    = useState('')
+  const [emailErr, setEmailErr] = useState('')
 
   const wsRef      = useRef(null)
   const ctxRef     = useRef(null)
@@ -239,29 +241,55 @@ export default function App() {
     return ctxRef.current
   }
 
-  // ── Start IVR flow ────────────────────────────────────────────
-  function beginIvr() {
-    setError('')
-    setMsgs([])
-    setRouting(null)
-    ensureCtx()   // create AudioContext on user gesture
-    setStatus('ivr')
+  // ── Step 1: open email capture screen ────────────────────────
+  function beginFlow() {
+    setError(''); setEmailErr(''); setMsgs([]); setRouting(null)
+    setStatus('email')
   }
 
-  // ── IVR routed → open WebSocket with routing params ───────────
+  // ── Step 2: validate email → request-call → IVR or queue ─────
+  async function submitEmail() {
+    if (!email || !/\S+@\S+\.\S+/.test(email)) {
+      setEmailErr('Enter a valid email address'); return
+    }
+    setEmailErr('')
+    ensureCtx()
+    // Hit /ivr/request-call with selected lang + email
+    try {
+      const res = await fetch(`${BACKEND}/ivr/request-call`, {
+        method: 'POST',
+        headers: { ...HEADERS, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lang, email }),
+      })
+      const data = await res.json()
+      if (data.status === 'ok') {
+        // Slot acquired — store routed voice, go to IVR listening
+        setRouting({ voice: data.voice, session_id: data.session_id, lang })
+        setStatus('ivr')
+      } else {
+        // Queued or full — show message
+        setStatus('queued')
+        setRouting({ email_sent: data.email_sent, queued: data.queued })
+      }
+    } catch {
+      setError('Backend unreachable. Check ngrok/backend.')
+      setStatus('idle')
+    }
+  }
+
+  // ── IVR routed → open WebSocket ──────────────────────────────
   async function onIvrRouted(routingData) {
-    setRouting(routingData)
-    // Use routing decision to select voice + LLM + lang
-    const resolvedLang  = routingData.lang  || lang
-    const resolvedLlm   = routingData.llm   || llm
-    // Try to find the exact voice from registry, fall back to routing.voice
-    const resolvedVoice = routingData.voice || (voices[resolvedLang]?.[0]?.name || '')
-    await startCall(resolvedLang, resolvedVoice, resolvedLlm)
+    const merged = { ...routing, ...routingData }
+    setRouting(merged)
+    const resolvedLang  = merged.lang  || lang
+    const resolvedVoice = merged.voice || routingData.voice || (voices[resolvedLang]?.[0]?.name || '')
+    await startCall(resolvedLang, resolvedVoice, llm)
   }
 
-  // ── Skip IVR → use manual settings ────────────────────────────
   async function onIvrSkip() {
-    setStatus('idle')
+    // Direct call with already-acquired voice slot
+    const resolvedVoice = routing?.voice || (voices[lang]?.[0]?.name || '')
+    await startCall(lang, resolvedVoice, llm)
   }
 
   // ── Open WebSocket call ───────────────────────────────────────
@@ -375,9 +403,8 @@ export default function App() {
     try { wsRef.current?.send(JSON.stringify({ type: 'interrupt' })) } catch {}
   }
 
-  const voiceList = voices[lang] || []
-  const isIdle    = status === 'idle'
-  const isIvr     = status === 'ivr'
+  const isIdle = status === 'idle'
+  const isIvr  = status === 'ivr'
 
   return (
     <div className="app">
@@ -387,16 +414,14 @@ export default function App() {
           <span className="brand-name">VoiceAI</span>
           <span className="brand-sub">Call Test</span>
         </div>
-        <div className="status-pill" data-status={isIvr ? 'active' : status}>
+        <div className="status-pill" data-status={isIvr || status === 'email' ? 'connecting' : status}>
           <span className="dot" />
-          {isIdle
-            ? 'Ready'
-            : isIvr
-            ? 'IVR Routing…'
-            : status === 'connecting'
-            ? 'Connecting…'
-            : `Live · ${agent}`
-          }
+          {isIdle ? 'Ready'
+            : status === 'email' ? 'Enter Email'
+            : isIvr  ? 'IVR Routing…'
+            : status === 'queued' ? 'All Agents Busy'
+            : status === 'connecting' ? 'Connecting…'
+            : `Live · ${agent}`}
         </div>
       </header>
 
@@ -407,41 +432,20 @@ export default function App() {
 
           {routing && status === 'active' && (
             <div className="routing-badge">
-              <div className="routing-badge-title">🔀 Routed via IVR</div>
-              <div className="routing-badge-row">
-                <span>Rule:</span> <strong>{routing.rule_name}</strong>
-              </div>
-              <div className="routing-badge-row">
-                <span>Queue:</span> <strong>{routing.queue_name}</strong>
-              </div>
+              <div className="routing-badge-title">🔀 Routed</div>
+              {routing.voice && <div className="routing-badge-row"><span>Voice:</span><strong>{routing.voice}</strong></div>}
+              {routing.rule_name && <div className="routing-badge-row"><span>Rule:</span><strong>{routing.rule_name}</strong></div>}
             </div>
           )}
 
           <label className="field">
-            <span>Language</span>
+            <span>Preferred Language</span>
             <select value={lang} onChange={e => setLang(e.target.value)} disabled={!isIdle}>
               {Object.keys(voices).length > 0
                 ? Object.keys(voices).map(l => (
                     <option key={l} value={l}>{LANG_LABELS[l] || l.toUpperCase()}</option>
                   ))
-                : <option value="en">English</option>
-              }
-            </select>
-          </label>
-
-          <label className="field">
-            <span>Voice (manual)</span>
-            <select value={voice} onChange={e => setVoice(e.target.value)} disabled={!isIdle}>
-              {voiceList.map(v => (
-                <option key={v.name} value={v.name}>{v.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field">
-            <span>LLM</span>
-            <select value={llm} onChange={e => setLlm(e.target.value)} disabled={!isIdle}>
-              <option value="ollama">Ollama (Local)</option>
+                : <option value="en">English</option>}
             </select>
           </label>
 
@@ -449,64 +453,78 @@ export default function App() {
 
           <div className="btn-group">
             {isIdle && (
-              <>
-                <button className="btn btn-call" onClick={beginIvr}>
-                  <span>🔀</span> Start with IVR
-                </button>
-                <button
-                  className="btn btn-call-manual"
-                  onClick={() => startCall(lang, voice, llm)}
-                  title="Skip routing — use manual settings above"
-                >
-                  <span>📞</span> Direct Call
-                </button>
-              </>
+              <button className="btn btn-call" onClick={beginFlow}>
+                <span>📞</span> Start Call
+              </button>
             )}
             {status === 'active' && (
               <>
-                <button className="btn btn-end" onClick={endCall}>
-                  <span>📵</span> End Call
-                </button>
-                <button className="btn btn-int" onClick={interrupt} title="Interrupt AI">
-                  <span>✋</span> Interrupt
-                </button>
+                <button className="btn btn-end" onClick={endCall}><span>📵</span> End Call</button>
+                <button className="btn btn-int" onClick={interrupt}><span>✋</span> Interrupt</button>
               </>
             )}
             {status === 'connecting' && (
-              <button className="btn btn-end" onClick={() => { wsRef.current?.close(); cleanup() }}>
-                Cancel
-              </button>
+              <button className="btn btn-end" onClick={() => { wsRef.current?.close(); cleanup() }}>Cancel</button>
+            )}
+            {status === 'queued' && (
+              <button className="btn btn-skip" onClick={() => setStatus('idle')}>← Back</button>
             )}
           </div>
 
           {error && <p className="error-msg">{error}</p>}
-
-          <div className="info-box">
-            <p className="info-title">How IVR works</p>
-            <p>Click "Start with IVR" → greeting plays → speak your issue → AI detects language & routes to the right agent automatically.</p>
-          </div>
         </aside>
 
         {/* ── Main content ─────────────────────────────── */}
         <section className="chat" ref={chatRef}>
+
+          {/* Email capture screen */}
+          {status === 'email' && (
+            <div className="ivr-panel">
+              <div className="ivr-title">Before We Connect</div>
+              <p className="ivr-desc">Enter your email so we can reach you if all agents are busy.</p>
+              <input
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && submitEmail()}
+                style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: '0.9rem', width: 280, outline: 'none' }}
+              />
+              {emailErr && <p style={{ color: 'var(--red)', fontSize: '0.8rem' }}>{emailErr}</p>}
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn-ivr" onClick={submitEmail}>Continue →</button>
+                <button className="btn-skip" onClick={() => setStatus('idle')}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Queue / all-busy screen */}
+          {status === 'queued' && (
+            <div className="ivr-panel">
+              <div className="ivr-title" style={{ color: 'var(--amber)' }}>All Agents Busy</div>
+              <p className="ivr-desc">All our AI agents are currently handling calls. Please try again shortly.</p>
+              {routing?.email_sent && (
+                <p style={{ color: 'var(--green)', fontSize: '0.85rem' }}>
+                  ✅ A sorry-we-missed-you email has been sent to <strong>{email}</strong>
+                </p>
+              )}
+              {routing?.queued && (
+                <p style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>Your request has been queued.</p>
+              )}
+            </div>
+          )}
+
           {/* IVR routing overlay */}
           {isIvr && (
-            <IvrStep
-              lang={lang}
-              onRouted={onIvrRouted}
-              onSkip={onIvrSkip}
-              audioCtxRef={ctxRef}
-            />
+            <IvrStep lang={lang} onRouted={onIvrRouted} onSkip={onIvrSkip} audioCtxRef={ctxRef} />
           )}
 
           {/* Chat messages */}
-          {!isIvr && msgs.length === 0 && (
+          {!isIvr && status !== 'email' && status !== 'queued' && msgs.length === 0 && (
             <div className="chat-empty">
               <div className="chat-empty-icon">💬</div>
               <p>Your conversation will appear here</p>
-              <p className="chat-empty-sub">
-                Use "Start with IVR" for auto-routing or "Direct Call" for manual settings
-              </p>
+              <p className="chat-empty-sub">Select language → Start Call → speak naturally</p>
             </div>
           )}
 

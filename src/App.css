@@ -205,3 +205,9 @@ select:disabled { opacity: 0.45; cursor: not-allowed; }
 .routing-badge-row   { display: flex; gap: 6px; font-size: 0.75rem; }
 .routing-badge-row span { color: var(--muted); }
 .routing-badge-row strong { color: var(--text); }
+
+/* ── Email input ─────────────────────────── */
+input[type="email"] {
+  transition: border-color 0.2s;
+}
+input[type="email"]:focus { border-color: var(--accent) !important; }
