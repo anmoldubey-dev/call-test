@@ -34,7 +34,7 @@ import { useNavigate } from "react-router-dom";
 // ---------------------------------------------------------------
 
 // ✅ VITE FIX: Added API Base URL
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const ROLE_COLORS = { admin: "border-purple-500 text-purple-400 bg-purple-500/10", superuser: "border-indigo-500 text-indigo-400 bg-indigo-500/10", agent: "border-cyan-500 text-cyan-400 bg-cyan-500/10", user: "border-gray-500 text-gray-400 bg-gray-500/10" };
 const STATUS_COLORS = { active: "border-emerald-500 text-emerald-400 bg-emerald-500/10", inactive: "border-red-500 text-red-400 bg-red-500/10" };

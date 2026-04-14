@@ -52,7 +52,7 @@ function BroadcastRoomWatcher({ onBroadcastEnded }) {
 // SECTION: CONFIGURATION & CONSTANTS
 // ---------------------------------------------------------------
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880';
 
 // ---------------------------------------------------------------

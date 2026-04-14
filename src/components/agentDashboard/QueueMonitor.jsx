@@ -24,7 +24,7 @@ import { Users, PhoneIncoming, Circle, RefreshCw } from "lucide-react";
 // ---------------------------------------------------------------
 // SECTION: CONFIGURATION & DESIGN TOKENS
 // ---------------------------------------------------------------
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const STATUS_STYLE = {
   online: { color: "#22c55e", label: "Online" },

@@ -37,7 +37,7 @@ import {
 import { AIChatBox } from "../../components/dashboard/AIChatBox";
 
 // ✅ VITE FIX: Added API Base URL for backend connection
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // ---------------------------------------------------------------
 // SECTION: MAIN DASHBOARD COMPONENT

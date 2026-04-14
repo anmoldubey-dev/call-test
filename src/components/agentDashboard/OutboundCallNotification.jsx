@@ -28,8 +28,8 @@ import { useAuth } from '../../context/AuthContext';
 // ---------------------------------------------------------------
 // SECTION: CONFIGURATION & CONSTANTS
 // ---------------------------------------------------------------
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const WS_BASE = API_BASE.replace(/^http/, 'ws');
+const API_BASE = import.meta.env.VITE_API_URL || '';
+const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://anteriorly-digestional-laquita.ngrok-free.dev';
 
 export default function OutboundCallNotification({ onAccept }) {
 

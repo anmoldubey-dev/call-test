@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Clock, Calendar, AlertTriangle, CheckCircle, RefreshCw, Save, XCircle } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const TIMEZONES = [
   "Asia/Kolkata",

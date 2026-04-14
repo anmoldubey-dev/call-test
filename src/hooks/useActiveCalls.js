@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ✅ VITE FIX: process.env removed, API calls made direct
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-const WS_URL   = API_BASE.replace(/^http/, 'ws') + '/ws/calls';
+const API_BASE = import.meta.env.VITE_API_URL || '';
+const WS_URL   = (import.meta.env.VITE_WS_URL || 'wss://anteriorly-digestional-laquita.ngrok-free.dev') + '/ws/calls';
 const FALLBACK_POLL_INTERVAL = 5000; // only used if WS fails
 
 /**

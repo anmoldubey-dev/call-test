@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RefreshCw, Plus, Trash2, Clock, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 const STATUS_COLOR = {
   pending:   "#818cf8",

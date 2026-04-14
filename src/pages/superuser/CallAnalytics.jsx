@@ -30,7 +30,7 @@ import * as THREE from "three";
 import { useNavigate } from "react-router-dom";
 
 // ✅ VITE FIX: Added API Base URL
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // ---------------------------------------------------------------
 // SECTION: 3D MESH COMPONENTS

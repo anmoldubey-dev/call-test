@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 
-const BACKEND = (import.meta.env.VITE_BACKEND_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev').replace(/\/$/, '')
+const BACKEND = (import.meta.env.VITE_BACKEND_URL || '').replace(/\/$/, '')
 const WS      = BACKEND.replace(/^https/, 'wss').replace(/^http/, 'ws')
 const HEADERS  = { 'ngrok-skip-browser-warning': '1' }
 

@@ -33,7 +33,7 @@ import { Btn, FCard, SecTitle } from "../components/dashboard/UI";
 // ---------------------------------------------------------------
 
 // ✅ VITE FIX: Added API Base URL
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const STATUS_COLOR = {
   active: { color: "var(--grn)", bg: "var(--grnl)" },

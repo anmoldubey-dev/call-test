@@ -152,7 +152,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const [activeCallId, setActiveCallId] = useState(null);
     const noAgentTimer = useRef(null);
 
-    const API_BASE = import.meta.env.VITE_API_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev';
+    const API_BASE = import.meta.env.VITE_API_URL || '';
 
     // AI fallback: if no agent answers in 20s and AI agents are enabled, route to AI
     const _startAiCall = async () => {
