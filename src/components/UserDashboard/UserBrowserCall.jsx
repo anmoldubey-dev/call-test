@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 // 🟢 FIX: Changed useParticipants to useRemoteParticipants
 import { LiveKitRoom, RoomAudioRenderer, useRemoteParticipants, useDataChannel, useRoomContext } from '@livekit/components-react';
 import { Phone, PhoneOff, Loader2, UserCheck } from 'lucide-react';
@@ -146,20 +146,30 @@ function CallStatusWatcher({ onAgentJoined }) {
 // ---------------------------------------------------------------
 
 export default function UserBrowserCall({ userName = "Guest User", userEmail = "guest" }) {
-    // Initialization -> Contextual state retrieval for session orchestration
-    const [callState, setCallState] = useState("idle"); // idle, connecting, waiting, active
+    const [callState, setCallState] = useState("idle"); // idle, connecting, waiting, active, ai
     const [connectionDetails, setConnectionDetails] = useState(null);
     const [department, setDepartment] = useState("General");
     const [activeCallId, setActiveCallId] = useState(null);
+    const noAgentTimer = useRef(null);
 
-    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    const API_BASE = import.meta.env.VITE_API_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev';
 
-    // Action Trigger -> startCall()-> Orchestrates the terminal WebRTC signaling sequence
+    // AI fallback: if no agent answers in 20s and AI agents are enabled, route to AI
+    const _startAiCall = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/livekit/token?lang=en&llm=ollama`);
+            const data = await res.json();
+            setConnectionDetails({ wsUrl: data.url, token: data.token, room: data.room });
+            setCallState("active"); // AI worker joins automatically
+        } catch (e) {
+            console.error("AI fallback failed", e);
+            setCallState("idle");
+        }
+    };
+
     const startCall = async () => {
         setCallState("connecting");
         try {
-            // 1. Trigger the Routing Engine → ring the right agent(s)
-            // Internal Call -> api.post()-> Initializes routing logic on the backend
             const initRes = await fetch(`${API_BASE}/api/webrtc/calls/initiate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -168,18 +178,28 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             const initData = await initRes.json();
             setActiveCallId(initData.call_id);
 
-            // 2. Fetch a LiveKit token for the User
-            // Internal Call -> api.get()-> Requests signed authorization token for room ingress
+            // no_agents = no human online → go AI immediately if enabled
+            if (initData.status === 'no_agents' && localStorage.getItem('ai_agents_enabled') === 'true') {
+                await _startAiCall();
+                return;
+            }
+
             const tokenRes = await fetch(`${API_BASE}/api/webrtc/livekit/token?room=${initData.room_name}&identity=user-${Date.now()}&name=${encodeURIComponent(userName)}`);
             const tokenData = await tokenRes.json();
 
-            // 3. Connect to the room and enter "waiting for agent" state
             setConnectionDetails({
-                wsUrl: import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880',
+                wsUrl: tokenData.livekit_url || import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880',
                 token: tokenData.token,
                 room: initData.room_name,
             });
             setCallState("waiting");
+
+            // AI fallback after 20s if still waiting
+            if (localStorage.getItem('ai_agents_enabled') === 'true') {
+                noAgentTimer.current = setTimeout(() => {
+                    if (setCallState) _startAiCall();
+                }, 20000);
+            }
         } catch (err) {
             console.error("Call failed", err);
             setCallState("idle");
@@ -187,13 +207,12 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         }
     };
 
-    // Action Trigger -> handleEndCall()-> Executes session termination and cleans up routing entries
     const handleEndCall = async () => {
-        if (callState === "waiting" && activeCallId) {
+        clearTimeout(noAgentTimer.current);
+        if ((callState === "waiting") && activeCallId) {
             try {
-                // Internal Call -> api.post()-> Dispatches cancellation signal to terminal nodes
                 await fetch(`${API_BASE}/api/webrtc/calls/cancel/${activeCallId}`, { method: 'POST' });
-            } catch { /* Fail-silent ensures local UI consistency */ }
+            } catch { /* fail silent */ }
         }
         setActiveCallId(null);
         setCallState("idle");

@@ -49,7 +49,7 @@ function IncomingCallModal({ onAccept, onReject, callerName }) {
   );
 }
 
-const API_BASE    = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE    = import.meta.env.VITE_API_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev';
 
 /** One-time department picker shown before the dashboard fully loads. */
 function DepartmentPicker({ onSelect }) {
