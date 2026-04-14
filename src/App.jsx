@@ -197,7 +197,7 @@ export default function App() {
   const [voices,   setVoices]   = useState({})
   const [lang,     setLang]     = useState('en')
   const [voice,    setVoice]    = useState('')
-  const [llm,      setLlm]      = useState('gemini')
+  const [llm,      setLlm]      = useState('ollama')
   const [status,   setStatus]   = useState('idle')    // idle|ivr|connecting|active
   const [msgs,     setMsgs]     = useState([])
   const [agent,    setAgent]    = useState('Agent')
@@ -441,8 +441,7 @@ export default function App() {
           <label className="field">
             <span>LLM</span>
             <select value={llm} onChange={e => setLlm(e.target.value)} disabled={!isIdle}>
-              <option value="gemini">Gemini (Cloud)</option>
-              <option value="qwen">Qwen (Local GPU)</option>
+              <option value="ollama">Ollama (Local)</option>
             </select>
           </label>
 
