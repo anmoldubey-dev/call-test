@@ -1,9 +1,7 @@
 import axios from 'axios';
 
 // Backend Port 5000 par hai, aur routes /api se shuru ho rahe hain
-const API_BASE_URL = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api` 
-  : 'http://localhost:5000/api';
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev') + '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
