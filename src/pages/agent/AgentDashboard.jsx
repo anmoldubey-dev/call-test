@@ -158,9 +158,9 @@ export default function AgentDashboard() {
     if (!agentIdentity || !token) return;
 
     const ping = () =>
-      fetch(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/cc/agent/heartbeat`, {
+      fetch(`${import.meta.env.VITE_API_URL || "https://anteriorly-digestional-laquita.ngrok-free.dev"}/api/cc/agent/heartbeat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
         body: JSON.stringify({ agent_identity: agentIdentity }),
       }).catch(() => {});
 
@@ -176,7 +176,7 @@ export default function AgentDashboard() {
     const agentEmail  = stored.email || "";
     if (!agentEmail) return;
 
-    const WS_BASE = (import.meta.env.VITE_API_URL || "http://localhost:5000").replace(/^http/, "ws");
+    const WS_BASE = (import.meta.env.VITE_API_URL || "https://anteriorly-digestional-laquita.ngrok-free.dev").replace(/^http/, "ws");
     let ws;
     let isMounted      = true;
     let reconnectTimer = null;
@@ -314,7 +314,7 @@ export default function AgentDashboard() {
              // 1. Fetch a secure LiveKit token for the agent
              try {
                  const res = await fetch(
-                   `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/webrtc/livekit/token?room=${data.room_name}&identity=${encodeURIComponent(agentId)}&name=Agent`
+                   `${import.meta.env.VITE_API_URL || 'https://anteriorly-digestional-laquita.ngrok-free.dev'}/api/webrtc/livekit/token?room=${data.room_name}&identity=${encodeURIComponent(agentId)}&name=Agent`
                  );
                  const tokenData = await res.json();
 

@@ -5,7 +5,10 @@ const API_BASE_URL = (import.meta.env.VITE_API_URL || 'https://anteriorly-digest
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  headers: { 'Content-Type': 'application/json' },
+  headers: {
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 // 1. Request Interceptor: Har request ke saath Token bhejna
