@@ -45,6 +45,7 @@ async function playWavBlob(blob, ctx) {
 
 // ── Language labels ────────────────────────────────────────────
 const LANG_LABELS = {
+  auto: '🎙 Auto Detect (IVR)',
   en: 'English', hi: 'Hindi', mr: 'Marathi', ta: 'Tamil', te: 'Telugu',
   ml: 'Malayalam', bn: 'Bengali', gu: 'Gujarati', kn: 'Kannada', pa: 'Punjabi',
   'en-in': 'English (Indian)', ar: 'Arabic', fr: 'French', de: 'German',
@@ -53,51 +54,116 @@ const LANG_LABELS = {
 }
 
 // ── IVR Routing Step ───────────────────────────────────────────
-// Shows routing screen before the actual call:
-// 1. Plays IVR greeting
-// 2. Listens to user (browser Web Speech API)
-// 3. Calls /ivr/classify → gets lang + voice + LLM
-// 4. Triggers startCall with routing params
+// IVR flow (lang='auto'): greeting → listen → classify via Ollama → request-call → route
+// Manual flow (lang set): just acquire slot via request-call, skip this step entirely
 
-function IvrStep({ lang, voice, onRouted, onSkip, audioCtxRef }) {
-  const [phase, setPhase] = useState('greeting')
+function IvrStep({ email, onRouted, onSkip, audioCtxRef }) {
+  const [phase,  setPhase]  = useState('greeting')  // greeting|listening|classifying|done
+  const [status, setStatus] = useState('Playing greeting…')
+  const [errMsg, setErrMsg] = useState('')
 
   useEffect(() => {
+    let cancelled = false
     const run = async () => {
+      // 1. Play greeting
       try {
         if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
-        const res = await fetch(`${BACKEND}/ivr/greeting?lang=${lang}`, { headers: HEADERS })
+        const res = await fetch(`${BACKEND}/ivr/greeting?lang=en`, { headers: HEADERS })
         if (res.ok) await playWavBlob(await res.blob(), audioCtxRef.current)
       } catch {}
-      // Lang already known from pre-call selection — connect directly
-      setPhase('connecting')
-      setTimeout(() => onRouted({ lang, voice }), 800)
+      if (cancelled) return
+
+      // 2. Listen via Web Speech API
+      setPhase('listening')
+      setStatus('Listening… say your preferred language')
+      const transcript = await listenOnce()
+      if (cancelled) return
+
+      // 3. Classify via Ollama
+      setPhase('classifying')
+      setStatus('Detecting language…')
+      let routeData
+      try {
+        const cr = await fetch(`${BACKEND}/ivr/classify`, {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transcript, hint_lang: 'en', session_id: crypto.randomUUID() }),
+        })
+        if (!cr.ok) throw new Error('classify failed')
+        routeData = await cr.json()
+      } catch {
+        routeData = { lang: 'en', voice: '' }
+        setErrMsg('Could not detect language — routing to English')
+      }
+      if (cancelled) return
+
+      // 4. Acquire slot for detected lang
+      setStatus(`Routing to ${LANG_LABELS[routeData.lang] || routeData.lang} agent…`)
+      try {
+        const sr = await fetch(`${BACKEND}/ivr/request-call`, {
+          method: 'POST',
+          headers: { ...HEADERS, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lang: routeData.lang, email }),
+        })
+        const slotData = await sr.json()
+        if (slotData.status === 'ok') {
+          routeData = { ...routeData, voice: slotData.voice, session_id: slotData.session_id }
+        } else {
+          // All agents busy even for detected lang
+          if (!cancelled) onSkip({ queued: true, email_sent: slotData.email_sent })
+          return
+        }
+      } catch {}
+      if (cancelled) return
+
+      setPhase('done')
+      setTimeout(() => { if (!cancelled) onRouted(routeData) }, 800)
     }
     run()
+    return () => { cancelled = true }
   }, [])
 
   return (
     <div className="ivr-panel">
-      <div className="ivr-title">Connecting…</div>
+      <div className="ivr-title">IVR Routing</div>
       <div className="ivr-status">
-        <div className={`pulse-dot ${phase === 'connecting' ? 'orange' : ''}`} />
-        {phase === 'greeting' ? 'Playing greeting…' : `Routing to ${LANG_LABELS[lang] || lang} agent…`}
+        <div className={`pulse-dot ${phase === 'listening' ? 'green' : phase === 'done' ? 'orange' : ''}`} />
+        {status}
       </div>
-
-      {phase === 'greeting' && <div className="ivr-error" style={{background:'none',border:'none',color:'var(--muted)',fontSize:'0.78rem'}}>You can skip if audio doesn't play</div>}
-      {phase === 'greeting' && <button className="btn-skip" onClick={() => { setPhase('connecting'); onRouted({ lang, voice }) }}>Skip greeting</button>}
-
-      {/* no error block needed — lang is pre-selected */}
+      {errMsg && <div className="ivr-error">{errMsg}</div>}
+      {phase === 'listening' && (
+        <div style={{ color: 'var(--muted)', fontSize: '0.8rem', marginTop: 6 }}>
+          Speak now — e.g. "Hindi", "Tamil", or just say a sentence in your language
+        </div>
+      )}
+      <button className="btn-skip" onClick={() => onSkip(null)}>Skip →</button>
     </div>
   )
+}
+
+// ── Speech helper: listen for up to 8 s, return transcript ────
+function listenOnce() {
+  return new Promise(resolve => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { resolve(''); return }
+    const r = new SR()
+    r.lang = ''                // empty = browser uses system locale; Ollama detects actual language
+    r.interimResults = false
+    r.maxAlternatives = 1
+    let done = false
+    const finish = t => { if (!done) { done = true; resolve(t) } }
+    r.onresult = e => finish(e.results[0][0].transcript)
+    r.onerror  = () => finish('')
+    r.onend    = () => finish('')
+    r.start()
+    setTimeout(() => { try { r.stop() } catch {} finish('') }, 8000)
+  })
 }
 
 // ── Main App ───────────────────────────────────────────────────
 
 export default function App() {
   const [voices,   setVoices]   = useState({})
-  const [lang,     setLang]     = useState('en')
-  const [voice,    setVoice]    = useState('')
   const [llm,      setLlm]      = useState('ollama')
   const [status,   setStatus]   = useState('idle')    // idle|email|ivr|connecting|active|queued
   const [msgs,     setMsgs]     = useState([])
@@ -119,12 +185,10 @@ export default function App() {
   useEffect(() => {
     fetch(`${BACKEND}/api/voices`, { headers: HEADERS })
       .then(r => r.json())
-      .then(d => { setVoices(d); setVoice(d['en']?.[0]?.name || '') })
+      .then(d => { setVoices(d) })
       .catch(() => setError('Cannot reach backend. Check ngrok/backend is running.'))
   }, [])
 
-  // Reset voice on lang change
-  useEffect(() => { setVoice(voices[lang]?.[0]?.name || '') }, [lang, voices])
 
   // Auto-scroll chat
   useEffect(() => {
@@ -148,49 +212,53 @@ export default function App() {
     setStatus('email')
   }
 
-  // ── Step 2: validate email → request-call → IVR or queue ─────
+  // ── Step 2: validate email → IVR or manual slot acquire ──────
   async function submitEmail() {
     if (!email || !/\S+@\S+\.\S+/.test(email)) {
       setEmailErr('Enter a valid email address'); return
     }
     setEmailErr('')
     ensureCtx()
-    // Hit /ivr/request-call with selected lang + email
+    setRouting(null)
+    setStatus('ivr')
+  }
+
+  // ── IVR routed (Ollama detected lang + slot acquired) ─────────
+  async function onIvrRouted(routingData) {
+    const merged = { ...routingData }
+    setRouting(merged)
+    const resolvedLang  = merged.lang  || 'en'
+    const resolvedVoice = merged.voice || voices[resolvedLang]?.[0]?.name || ''
+    await startCall(resolvedLang, resolvedVoice, llm)
+  }
+
+  // IVR skip — use English default or show queued if IvrStep set that
+  async function onIvrSkip(queueInfo) {
+    if (queueInfo?.queued) {
+      setStatus('queued')
+      setRouting({ email_sent: queueInfo.email_sent, queued: true })
+      return
+    }
+    // skip greeting/classify — try English slot
     try {
       const res = await fetch(`${BACKEND}/ivr/request-call`, {
         method: 'POST',
         headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lang, email }),
+        body: JSON.stringify({ lang: 'en', email }),
       })
       const data = await res.json()
       if (data.status === 'ok') {
-        // Slot acquired — store routed voice, go to IVR listening
-        setRouting({ voice: data.voice, session_id: data.session_id, lang })
-        setStatus('ivr')
+        const v = data.voice || voices['en']?.[0]?.name || ''
+        setRouting({ voice: v, session_id: data.session_id, lang: 'en' })
+        await startCall('en', v, llm)
       } else {
-        // Queued or full — show message
         setStatus('queued')
         setRouting({ email_sent: data.email_sent, queued: data.queued })
       }
     } catch {
-      setError('Backend unreachable. Check ngrok/backend.')
+      setError('Backend unreachable.')
       setStatus('idle')
     }
-  }
-
-  // ── IVR routed → open WebSocket ──────────────────────────────
-  async function onIvrRouted(routingData) {
-    const merged = { ...routing, ...routingData }
-    setRouting(merged)
-    const resolvedLang  = merged.lang  || lang
-    const resolvedVoice = merged.voice || routingData.voice || (voices[resolvedLang]?.[0]?.name || '')
-    await startCall(resolvedLang, resolvedVoice, llm)
-  }
-
-  async function onIvrSkip() {
-    // Direct call with already-acquired voice slot
-    const resolvedVoice = routing?.voice || (voices[lang]?.[0]?.name || '')
-    await startCall(lang, resolvedVoice, llm)
   }
 
   // ── Open WebSocket call ───────────────────────────────────────
@@ -216,9 +284,9 @@ export default function App() {
 
     sock.onopen = () => {
       sock.send(JSON.stringify({
-        lang:  callLang  || lang,
-        llm:   callLlm   || llm,
-        voice: callVoice || voice,
+        lang:  callLang,
+        llm:   callLlm  || llm,
+        voice: callVoice,
         phone: 'web-test',
       }))
 
@@ -345,17 +413,6 @@ export default function App() {
             </div>
           )}
 
-          <label className="field">
-            <span>Preferred Language</span>
-            <select value={lang} onChange={e => setLang(e.target.value)} disabled={!isIdle}>
-              {Object.keys(voices).length > 0
-                ? Object.keys(voices).map(l => (
-                    <option key={l} value={l}>{LANG_LABELS[l] || l.toUpperCase()}</option>
-                  ))
-                : <option value="en">English</option>}
-            </select>
-          </label>
-
           <div className="divider" />
 
           <div className="btn-group">
@@ -423,7 +480,7 @@ export default function App() {
 
           {/* IVR routing overlay */}
           {isIvr && (
-            <IvrStep lang={lang} voice={routing?.voice || ''} onRouted={onIvrRouted} onSkip={onIvrSkip} audioCtxRef={ctxRef} />
+            <IvrStep email={email} onRouted={onIvrRouted} onSkip={onIvrSkip} audioCtxRef={ctxRef} />
           )}
 
           {/* Chat messages */}
@@ -431,7 +488,7 @@ export default function App() {
             <div className="chat-empty">
               <div className="chat-empty-icon">💬</div>
               <p>Your conversation will appear here</p>
-              <p className="chat-empty-sub">Select language → Start Call → speak naturally</p>
+              <p className="chat-empty-sub">Start Call → speak your language → AI detects &amp; routes</p>
             </div>
           )}
 
