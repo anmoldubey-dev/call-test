@@ -38,7 +38,7 @@ import api from '../../services/api.js';
 // ---------------------------------------------------------------
 
 // Normalise: strip trailing /api (if present) then always append /api ourselves.
-const API_BASE = ((import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000').replace(/\/api\/?$/, '')) + '/api';
+const API_BASE = ((import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')) + '/api';
 
 const DEPARTMENTS = ['General', 'Sales', 'Support', 'Billing', 'Technical'];
 

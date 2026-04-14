@@ -39,7 +39,7 @@ import AiAssistPanel from './AiAssistPanel';
 
 // Normalise origin — strip any trailing /api so we can always append it ourselves.
 // VITE_API_URL may or may not include /api; we handle both cases.
-const _ORIGIN = (import.meta.env.VITE_API_URL || 'http://127.0.0.1:5000').replace(/\/api\/?$/, '');
+const _ORIGIN = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880';
 const AI_SUGGEST_URL = `${_ORIGIN}/api/ai-suggest`;
 

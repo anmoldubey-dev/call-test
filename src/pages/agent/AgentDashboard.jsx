@@ -276,7 +276,7 @@ export default function AgentDashboard() {
                     const res       = await fetch(`${API_BASE}/api/webrtc/livekit/token?room=${roomName}&identity=${encodeURIComponent(agentId)}&name=${encodeURIComponent(stored.name || "Agent")}`);
                     const tokenData = await res.json();
                     if (!tokenData.token) throw new Error("No token");
-                    setLivekitSession({ url: import.meta.env.VITE_LIVEKIT_URL || "ws://127.0.0.1:7880", token: tokenData.token, room: roomName });
+                    setLivekitSession({ url: tokenData.livekit_url || import.meta.env.VITE_LIVEKIT_URL || "wss://voice-ai-nv6qlh0d.livekit.cloud", token: tokenData.token, room: roomName });
                     setActiveTab("live-console");
                     startCall();
                   } catch (e) {
