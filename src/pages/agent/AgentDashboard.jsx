@@ -322,7 +322,7 @@ export default function AgentDashboard() {
 
                  // 2. Push the token to CallContext (LiveCallConsole will detect this instantly)
                  setLivekitSession({
-                     url: import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880',
+                     url: tokenData.livekit_url || import.meta.env.VITE_LIVEKIT_URL || 'wss://voice-ai-nv6qlh0d.livekit.cloud',
                      token: tokenData.token,
                      room: data.room_name
                  });
@@ -348,7 +348,7 @@ export default function AgentDashboard() {
           }
           isOutboundCallRef.current = true;   // mark as outbound so hangup handler fires
           setLivekitSession({
-            url:   tokenData.url || import.meta.env.VITE_LIVEKIT_URL || "ws://127.0.0.1:7880",
+            url:   tokenData.url || import.meta.env.VITE_LIVEKIT_URL || "wss://voice-ai-nv6qlh0d.livekit.cloud",
             token: tokenData.token,
             room:  tokenData.room,
           });
