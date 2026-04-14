@@ -59,134 +59,35 @@ const LANG_LABELS = {
 // 3. Calls /ivr/classify → gets lang + voice + LLM
 // 4. Triggers startCall with routing params
 
-function IvrStep({ lang, onRouted, onSkip, audioCtxRef }) {
-  const [phase, setPhase]     = useState('idle')   // idle|greeting|listening|classifying|done
-  const [transcript, setTx]   = useState('')
-  const [routing, setRouting] = useState(null)
-  const [error, setError]     = useState('')
-  const recogRef = useRef(null)
+function IvrStep({ lang, voice, onRouted, onSkip, audioCtxRef }) {
+  const [phase, setPhase] = useState('greeting')
 
-  const playGreeting = async () => {
-    setPhase('greeting')
-    setError('')
-    try {
-      // Ensure AudioContext is running
-      if (audioCtxRef.current?.state === 'suspended') {
-        await audioCtxRef.current.resume()
-      }
-      const res = await fetch(`${BACKEND}/ivr/greeting?lang=${lang}`, { headers: HEADERS })
-      if (res.ok) {
-        const blob = await res.blob()
-        await playWavBlob(blob, audioCtxRef.current)
-      }
-    } catch (e) {
-      console.warn('[IVR] greeting failed:', e)
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (audioCtxRef.current?.state === 'suspended') await audioCtxRef.current.resume()
+        const res = await fetch(`${BACKEND}/ivr/greeting?lang=${lang}`, { headers: HEADERS })
+        if (res.ok) await playWavBlob(await res.blob(), audioCtxRef.current)
+      } catch {}
+      // Lang already known from pre-call selection — connect directly
+      setPhase('connecting')
+      setTimeout(() => onRouted({ lang, voice }), 800)
     }
-    startListening()
-  }
-
-  const startListening = () => {
-    setPhase('listening')
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) {
-      // No Web Speech API — auto-classify with just lang hint
-      classify('(no transcript — browser speech API unavailable)')
-      return
-    }
-    const r = new SR()
-    r.lang = lang
-    r.continuous = false
-    r.interimResults = false
-    r.maxAlternatives = 1
-    r.onresult = e => {
-      const text = e.results[0][0].transcript
-      setTx(text)
-      classify(text)
-    }
-    r.onerror = () => classify('(speech recognition error)')
-    r.onend   = () => { if (phase === 'listening') classify(transcript || '(no speech)') }
-    recogRef.current = r
-    r.start()
-    // Auto-timeout after 8 seconds
-    setTimeout(() => {
-      try { r.stop() } catch {}
-    }, 8000)
-  }
-
-  const classify = async (text) => {
-    setPhase('classifying')
-    try {
-      const res = await fetch(`${BACKEND}/ivr/classify`, {
-        method:  'POST',
-        headers: { ...HEADERS, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ transcript: text, hint_lang: lang, session_id: crypto.randomUUID() }),
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
-      setRouting(data)
-      setPhase('done')
-      // Proceed to call after 1.5s
-      setTimeout(() => onRouted(data), 1500)
-    } catch (e) {
-      setError(`Routing failed: ${e.message}. Using manual settings.`)
-      setTimeout(() => onSkip(), 2000)
-    }
-  }
+    run()
+  }, [])
 
   return (
     <div className="ivr-panel">
-      <div className="ivr-title">🎙 AI Routing</div>
+      <div className="ivr-title">Connecting…</div>
+      <div className="ivr-status">
+        <div className={`pulse-dot ${phase === 'connecting' ? 'orange' : ''}`} />
+        {phase === 'greeting' ? 'Playing greeting…' : `Routing to ${LANG_LABELS[lang] || lang} agent…`}
+      </div>
 
-      {phase === 'idle' && (
-        <>
-          <p className="ivr-desc">
-            Our IVR will detect your language and connect you to the right AI agent automatically.
-          </p>
-          <button className="btn btn-ivr" onClick={playGreeting}>
-            Start IVR Flow
-          </button>
-          <button className="btn btn-skip" onClick={onSkip}>
-            Skip → Manual Settings
-          </button>
-        </>
-      )}
+      {phase === 'greeting' && <div className="ivr-error" style={{background:'none',border:'none',color:'var(--muted)',fontSize:'0.78rem'}}>You can skip if audio doesn't play</div>}
+      {phase === 'greeting' && <button className="btn-skip" onClick={() => { setPhase('connecting'); onRouted({ lang, voice }) }}>Skip greeting</button>}
 
-      {phase === 'greeting' && (
-        <div className="ivr-status">
-          <div className="pulse-dot" />
-          Playing greeting…
-        </div>
-      )}
-
-      {phase === 'listening' && (
-        <div className="ivr-status listening">
-          <div className="pulse-dot red" />
-          Listening… speak your issue
-          {transcript && <div className="ivr-tx">{transcript}</div>}
-        </div>
-      )}
-
-      {phase === 'classifying' && (
-        <div className="ivr-status">
-          <div className="pulse-dot orange" />
-          Analyzing &amp; routing…
-          {transcript && <div className="ivr-tx">"{transcript}"</div>}
-        </div>
-      )}
-
-      {phase === 'done' && routing && (
-        <div className="ivr-result">
-          <div className="ivr-result-title">✅ Routed</div>
-          <div className="ivr-result-row"><span>Language</span><strong>{LANG_LABELS[routing.lang] ?? routing.lang}</strong></div>
-          <div className="ivr-result-row"><span>Department</span><strong>{routing.department}</strong></div>
-          <div className="ivr-result-row"><span>AI Agent</span><strong>{routing.voice || routing.lang}</strong></div>
-          <div className="ivr-result-row"><span>LLM</span><strong>{routing.llm}</strong></div>
-          <div className="ivr-result-row"><span>Rule</span><strong>{routing.rule_name}</strong></div>
-          <div className="ivr-connecting">Connecting to AI agent…</div>
-        </div>
-      )}
-
-      {error && <div className="ivr-error">{error}</div>}
+      {/* no error block needed — lang is pre-selected */}
     </div>
   )
 }
@@ -522,7 +423,7 @@ export default function App() {
 
           {/* IVR routing overlay */}
           {isIvr && (
-            <IvrStep lang={lang} onRouted={onIvrRouted} onSkip={onIvrSkip} audioCtxRef={ctxRef} />
+            <IvrStep lang={lang} voice={routing?.voice || ''} onRouted={onIvrRouted} onSkip={onIvrSkip} audioCtxRef={ctxRef} />
           )}
 
           {/* Chat messages */}
