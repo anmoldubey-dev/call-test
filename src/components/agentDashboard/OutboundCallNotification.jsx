@@ -29,7 +29,7 @@ import { useAuth } from '../../context/AuthContext';
 // SECTION: CONFIGURATION & CONSTANTS
 // ---------------------------------------------------------------
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://anteriorly-digestional-laquita.ngrok-free.dev';
+const WS_BASE = import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, 'ws');
 
 export default function OutboundCallNotification({ onAccept }) {
 
@@ -62,7 +62,7 @@ export default function OutboundCallNotification({ onAccept }) {
         wsRef.current.close();
       }
 
-      wsRef.current = new WebSocket(`${WS_BASE}/api/ws/events`);
+      wsRef.current = new WebSocket(`${WS_BASE}/api/cc/ws/events`);
 
       wsRef.current.onmessage = (evt) => {
         try {
