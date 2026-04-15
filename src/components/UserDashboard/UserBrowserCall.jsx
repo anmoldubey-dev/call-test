@@ -403,10 +403,10 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         {showClosedPopup && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ background: '#0f172a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 20, padding: '40px 36px', maxWidth: 380, width: '90%', textAlign: 'center', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
-                    <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-                    <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>We're Currently Closed</h2>
-                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, margin: '0 0 12px' }}>Our support line is outside business hours.</p>
-                    {bizHours && (
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>{bizHours?.is_holiday ? '🎉' : '🔒'}</div>
+                    <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>{bizHours?.is_holiday ? 'Holiday Mode' : "We're Currently Closed"}</h2>
+                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, margin: '0 0 12px' }}>{bizHours?.is_holiday ? (bizHours.holiday_message || 'We are on a holiday today.') : 'Our support line is outside business hours.'}</p>
+                    {bizHours && !bizHours.is_holiday && (
                         <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#c7d2fe' }}>
                             🕐 Available: <strong>{bizHours.work_start} – {bizHours.work_end}</strong> &nbsp;·&nbsp; {bizHours.work_days_names?.join(', ')}
                         </div>
