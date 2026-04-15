@@ -5,6 +5,10 @@
       "destination": "https://anteriorly-digestional-laquita.ngrok-free.dev/api/:path*"
     },
     {
+      "source": "/livekit/:path*",
+      "destination": "https://anteriorly-digestional-laquita.ngrok-free.dev/livekit/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

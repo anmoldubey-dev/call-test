@@ -113,6 +113,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // idle → connecting → waiting (in queue, IVR plays) → active (agent/AI connected)
     // lang_pick: no agents at all, show language selector (voice + buttons)
     const [callState, setCallState] = useState("idle");
+    const [noAgents, setNoAgents] = useState(false);
     const [connectionDetails, setConnectionDetails] = useState(null);
     const [department, setDepartment] = useState("General");
     const [activeCallId, setActiveCallId] = useState(null);
@@ -175,6 +176,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 fetch(`${API_BASE}/api/webrtc/calls/cancel/${activeCallId}`, { method: 'POST' }).catch(() => {});
                 setActiveCallId(null);
             }
+            setNoAgents(false);
             setConnectionDetails({ wsUrl: data.url, token: data.token, room: data.room });
             setCallState("active");
         } catch (e) {
@@ -223,17 +225,15 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             const initData = await initRes.json();
             setActiveCallId(initData.call_id);
 
-            // No human agents online → if AI enabled, show lang picker with IVR prompt
             const aiOn = localStorage.getItem('ai_agents_enabled') === 'true';
             if (initData.status === 'no_agents') {
-                if (aiOn) {
-                    setCallState("lang_pick");
-                    setTimeout(() => _startLangDetection(), 300);
-                } else {
+                if (!aiOn) {
                     setCallState("idle");
                     alert("No agents are currently available. Please try again later.");
+                    return;
                 }
-                return;
+                setNoAgents(true); // flag so UI shows "no agents / AI mode"
+                // Fall through — still join room so backend TTS reaches user
             }
 
             const tokenRes = await fetch(`${API_BASE}/api/webrtc/livekit/token?room=${initData.room_name}&identity=user-${Date.now()}&name=${encodeURIComponent(userName)}`);
@@ -254,6 +254,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
 
     const handleEndCall = async () => {
         _stopLangDetection();
+        setNoAgents(false);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
         if ((callState === "waiting" || callState === "lang_pick") && activeCallId) {
             try { await fetch(`${API_BASE}/api/webrtc/calls/cancel/${activeCallId}`, { method: 'POST' }); } catch { }
@@ -309,14 +310,28 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         {callState === "waiting" ? (
                             <>
-                                <div style={{ background: '#22c55e', padding: 12, borderRadius: '50%', animation: 'pulse 2s infinite' }}>
+                                <div style={{ background: noAgents ? '#6366f1' : '#22c55e', padding: 12, borderRadius: '50%', animation: 'pulse 2s infinite' }}>
                                     <Phone size={24} color="white" />
                                 </div>
-                                <h3 style={{ color: '#22c55e', margin: 0 }}>Waiting for Agent</h3>
+                                <h3 style={{ color: noAgents ? '#6366f1' : '#22c55e', margin: 0 }}>
+                                    {noAgents ? 'AI Assistant' : 'Waiting for Agent'}
+                                </h3>
                                 {aiListening
-                                    ? <p style={{ fontSize: 13, color: '#22c55e', margin: 0 }}>🎙 Say your language for AI assistant (e.g. "English")</p>
-                                    : <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Connecting to next available agent…</p>
+                                    ? <p style={{ fontSize: 13, color: '#22c55e', margin: 0 }}>🎙 Speak now — we'll detect your language</p>
+                                    : <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
+                                        {noAgents ? 'No agents online. AI will assist you.' : 'Connecting to next available agent…'}
+                                      </p>
                                 }
+                                {aiListening && (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, width: '100%', marginTop: 4 }}>
+                                        {AI_LANGS.slice(0, 6).map(lang => (
+                                            <button key={lang.code} onClick={() => { _stopLangDetection(); startAiCallRef.current?.(lang.code); }}
+                                                style={{ padding: '7px 4px', background: '#1e1e2e', color: '#e2e8f0', border: '1px solid #2d2d4e', borderRadius: 6, cursor: 'pointer', fontSize: 11 }}>
+                                                {lang.label.split(' ')[0]}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                             </>
                         ) : (
                             <>
