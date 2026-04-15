@@ -108,6 +108,9 @@ function IvrStep({ email, onRouted, onSkip, audioCtxRef }) {
         const slotData = await sr.json()
         if (slotData.status === 'ok') {
           routeData = { ...routeData, voice: slotData.voice, session_id: slotData.session_id }
+        } else if (slotData.status === 'closed') {
+          if (!cancelled) onSkip({ closed: true })
+          return
         } else {
           // All agents busy even for detected lang
           if (!cancelled) onSkip({ queued: true, email_sent: slotData.email_sent })
@@ -232,8 +235,12 @@ export default function App() {
     await startCall(resolvedLang, resolvedVoice, llm)
   }
 
-  // IVR skip — use English default or show queued if IvrStep set that
+  // IVR skip — use English default or show queued/closed if IvrStep set that
   async function onIvrSkip(queueInfo) {
+    if (queueInfo?.closed) {
+      setStatus('closed')
+      return
+    }
     if (queueInfo?.queued) {
       setStatus('queued')
       setRouting({ email_sent: queueInfo.email_sent, queued: true })
@@ -251,6 +258,8 @@ export default function App() {
         const v = data.voice || voices['en']?.[0]?.name || ''
         setRouting({ voice: v, session_id: data.session_id, lang: 'en' })
         await startCall('en', v, llm)
+      } else if (data.status === 'closed') {
+        setStatus('closed')
       } else {
         setStatus('queued')
         setRouting({ email_sent: data.email_sent, queued: data.queued })
@@ -378,8 +387,9 @@ export default function App() {
     try { wsRef.current?.send(JSON.stringify({ type: 'interrupt' })) } catch {}
   }
 
-  const isIdle = status === 'idle'
-  const isIvr  = status === 'ivr'
+  const isIdle   = status === 'idle'
+  const isIvr    = status === 'ivr'
+  const isClosed = status === 'closed'
 
   return (
     <div className="app">
@@ -389,11 +399,12 @@ export default function App() {
           <span className="brand-name">VoiceAI</span>
           <span className="brand-sub">Call Test</span>
         </div>
-        <div className="status-pill" data-status={isIvr || status === 'email' ? 'connecting' : status}>
+        <div className="status-pill" data-status={isIvr || status === 'email' ? 'connecting' : isClosed ? 'queued' : status}>
           <span className="dot" />
           {isIdle ? 'Ready'
             : status === 'email' ? 'Enter Email'
             : isIvr  ? 'IVR Routing…'
+            : isClosed ? 'Outside Business Hours'
             : status === 'queued' ? 'All Agents Busy'
             : status === 'connecting' ? 'Connecting…'
             : `Live · ${agent}`}
@@ -433,6 +444,9 @@ export default function App() {
             {status === 'queued' && (
               <button className="btn btn-skip" onClick={() => setStatus('idle')}>← Back</button>
             )}
+            {isClosed && (
+              <button className="btn btn-skip" onClick={() => setStatus('idle')}>← Back</button>
+            )}
           </div>
 
           {error && <p className="error-msg">{error}</p>}
@@ -459,6 +473,14 @@ export default function App() {
                 <button className="btn-ivr" onClick={submitEmail}>Continue →</button>
                 <button className="btn-skip" onClick={() => setStatus('idle')}>Cancel</button>
               </div>
+            </div>
+          )}
+
+          {/* Outside business hours screen */}
+          {isClosed && (
+            <div className="ivr-panel">
+              <div className="ivr-title" style={{ color: 'var(--red)' }}>We're Currently Closed</div>
+              <p className="ivr-desc">Our support line is outside business hours. Please try again during working hours.</p>
             </div>
           )}
 
