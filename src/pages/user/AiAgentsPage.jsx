@@ -3,16 +3,36 @@ import { useState, useEffect } from 'react'
 const LS_KEY = 'ai_agents_enabled'
 const IS_LOCAL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
 const ADMIN_URL = import.meta.env.VITE_ADMIN_CONSOLE_URL || 'http://localhost:5173'
+const API_BASE = import.meta.env.VITE_API_URL || ''
 
 export default function AiAgentsPage() {
   const [enabled, setEnabled] = useState(() => localStorage.getItem(LS_KEY) === 'true')
   const [showIframe, setShowIframe] = useState(false)
+
+  // Sync backend config on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/api/cc/admin/config/get?key=ai_agents_enabled`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.value != null) {
+          const v = d.value === 'true';
+          localStorage.setItem(LS_KEY, String(v));
+          setEnabled(v);
+        }
+      }).catch(() => {});
+  }, []);
 
   const toggle = () => {
     const next = !enabled
     localStorage.setItem(LS_KEY, String(next))
     setEnabled(next)
     if (!next) setShowIframe(false)
+    // Sync to backend so queue_engine can read it
+    fetch(`${API_BASE}/api/cc/admin/config`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'ai_agents_enabled', value: String(next) }),
+    }).catch(() => {});
   }
 
   return (

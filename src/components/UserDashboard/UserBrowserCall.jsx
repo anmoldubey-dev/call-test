@@ -76,12 +76,34 @@ function CallStatusWatcher({ onAgentJoined }) {
 // ---------------------------------------------------------------
 // SECTION: CONSTANTS
 // ---------------------------------------------------------------
+// All supported AI voice languages (matches backend voice registry)
 const AI_LANGS = [
-    { code: 'en', label: 'English' }, { code: 'hi', label: 'Hindi' },
-    { code: 'mr', label: 'Marathi' }, { code: 'ta', label: 'Tamil' },
-    { code: 'te', label: 'Telugu' }, { code: 'ml', label: 'Malayalam' },
+    { code: 'en', label: 'English' }, { code: 'hi', label: 'Hindi (हिंदी)' },
+    { code: 'mr', label: 'Marathi (मराठी)' }, { code: 'ta', label: 'Tamil (தமிழ்)' },
+    { code: 'te', label: 'Telugu (తెలుగు)' }, { code: 'ml', label: 'Malayalam (മലയാളം)' },
+    { code: 'bn', label: 'Bengali (বাংলা)' }, { code: 'gu', label: 'Gujarati (ગુજરાતી)' },
+    { code: 'kn', label: 'Kannada (ಕನ್ನಡ)' }, { code: 'pa', label: 'Punjabi (ਪੰਜਾਬੀ)' },
+    { code: 'ur', label: 'Urdu (اردو)' }, { code: 'fr', label: 'French' },
+    { code: 'de', label: 'German' }, { code: 'es', label: 'Spanish' },
+    { code: 'ar', label: 'Arabic (عربي)' }, { code: 'zh', label: 'Chinese (中文)' },
+    { code: 'ru', label: 'Russian' }, { code: 'ne', label: 'Nepali (नेपाली)' },
 ];
-const LANG_KEYWORDS = { english: 'en', hindi: 'hi', marathi: 'mr', tamil: 'ta', telugu: 'te', malayalam: 'ml' };
+
+// Detect language from transcript using Unicode script ranges
+const detectLangFromText = (text) => {
+    if (/[\u0900-\u097F]/.test(text)) return 'hi';   // Devanagari → Hindi (Marathi also, default Hindi)
+    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';   // Tamil
+    if (/[\u0C00-\u0C7F]/.test(text)) return 'te';   // Telugu
+    if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';   // Malayalam
+    if (/[\u0980-\u09FF]/.test(text)) return 'bn';   // Bengali
+    if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';   // Gujarati
+    if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';   // Kannada
+    if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';   // Gurmukhi (Punjabi)
+    if (/[\u0600-\u06FF]/.test(text)) return 'ar';   // Arabic/Urdu
+    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';   // Chinese
+    if (/[\u0400-\u04FF]/.test(text)) return 'ru';   // Cyrillic
+    return 'en'; // default English
+};
 
 // ---------------------------------------------------------------
 // SECTION: MAIN USER-INTERFACE COMPONENT
@@ -120,27 +142,20 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         }
     };
 
-    // Plays IVR voice prompt + starts ASR to detect language keyword
+    // Starts ASR for language detection — backend TTS prompt handled by queue_engine
     const _startLangDetection = () => {
-        if (window.speechSynthesis) {
-            window.speechSynthesis.cancel();
-            const utt = new SpeechSynthesisUtterance(
-                "Please say your preferred language to connect to our AI assistant: English, Hindi, Marathi, Tamil, Telugu, or Malayalam."
-            );
-            utt.rate = 0.9;
-            window.speechSynthesis.speak(utt);
-        }
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SR) return;
         const rec = new SR();
         rec.continuous = true;
         rec.interimResults = false;
+        rec.lang = ''; // auto-detect language
         langRecRef.current = rec;
         rec.onresult = (event) => {
-            const t = event.results[event.results.length - 1][0].transcript.toLowerCase();
-            for (const [kw, code] of Object.entries(LANG_KEYWORDS)) {
-                if (t.includes(kw)) { _stopLangDetection(); startAiCallRef.current?.(code); return; }
-            }
+            const transcript = event.results[event.results.length - 1][0].transcript;
+            const code = detectLangFromText(transcript);
+            _stopLangDetection();
+            startAiCallRef.current?.(code);
         };
         rec.onend = () => { if (langRecRef.current) try { rec.start(); } catch (_) { } };
         try { rec.start(); setAiListening(true); } catch (_) { }
@@ -252,30 +267,29 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // SECTION: PRIMARY RENDER (JSX)
     // ---------------------------------------------------------------
 
-    // lang_pick: no agents online, AI enabled — show voice IVR + button fallback
+    // lang_pick: no agents online, AI enabled — speak any language, or tap to select
     if (callState === "lang_pick") {
         return (
-            <div style={{ padding: 24, background: '#0e1419', borderRadius: 12, border: '1px solid #6366f1', color: 'white' }}>
+            <div style={{ padding: 20, background: '#0e1419', borderRadius: 12, border: '1px solid #6366f1', color: 'white' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                    <Mic size={18} color={aiListening ? '#22c55e' : '#6366f1'} />
-                    <h3 style={{ margin: 0, fontSize: '18px' }}>Select Language</h3>
+                    <Mic size={18} color={aiListening ? '#22c55e' : '#6366f1'} style={{ flexShrink: 0 }} />
+                    <h3 style={{ margin: 0, fontSize: '16px' }}>
+                        {aiListening ? '🎙 Listening — speak now' : 'Choose Language'}
+                    </h3>
                 </div>
-                <p style={{ fontSize: 13, color: '#5a7a9a', marginBottom: 6 }}>
-                    {aiListening ? '🎙 Listening… say your language' : 'No agents available. Connect to AI assistant.'}
+                <p style={{ fontSize: 12, color: '#5a7a9a', marginBottom: 12 }}>
+                    Speak in your language — we'll detect it. Or tap below.
                 </p>
-                <p style={{ fontSize: 12, color: '#334155', marginBottom: 16 }}>
-                    Say or tap: English · Hindi · Marathi · Tamil · Telugu · Malayalam
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+                <div style={{ maxHeight: 240, overflowY: 'auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
                     {AI_LANGS.map(lang => (
                         <button key={lang.code} onClick={() => _startAiCall(lang.code)}
-                            style={{ padding: '11px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 13 }}>
+                            style={{ padding: '9px 6px', background: '#1e1e2e', color: '#e2e8f0', border: '1px solid #2d2d4e', borderRadius: 7, cursor: 'pointer', fontSize: 12, textAlign: 'left' }}>
                             {lang.label}
                         </button>
                     ))}
                 </div>
                 <button onClick={handleEndCall}
-                    style={{ width: '100%', padding: '10px', background: 'transparent', color: '#5a7a9a', border: '1px solid #1e2d3d', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+                    style={{ width: '100%', padding: '9px', background: 'transparent', color: '#5a7a9a', border: '1px solid #1e2d3d', borderRadius: 8, cursor: 'pointer', fontSize: 12 }}>
                     Cancel
                 </button>
             </div>
