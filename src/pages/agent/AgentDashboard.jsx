@@ -166,7 +166,6 @@ export default function AgentDashboard() {
         body: JSON.stringify({ agent_identity: agentIdentity }),
       }).catch(() => {});
 
-    // Set offline immediately on tab close / navigation away using sendBeacon (fires even on unload)
     const setOffline = () => {
       const url = `${API}/api/cc/agent/offline`;
       const data = JSON.stringify({ agent_identity: agentIdentity });
@@ -175,18 +174,20 @@ export default function AgentDashboard() {
       }
     };
 
-    // Also catch visibility hidden (mobile background / tab switch to close)
-    const onVisibility = () => { if (document.visibilityState === "hidden") setOffline(); };
+    // Re-register as online when tab becomes visible again (in case they were set offline)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping();
+    };
 
     ping();
     const id = setInterval(ping, 30_000);
-    window.addEventListener("beforeunload", setOffline);
-    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("beforeunload", setOffline);     // actual tab/browser close
+    document.addEventListener("visibilitychange", onVisible); // re-ping on tab focus
     return () => {
       clearInterval(id);
       window.removeEventListener("beforeunload", setOffline);
-      document.removeEventListener("visibilitychange", onVisibility);
-      setOffline(); // also fires on React unmount (logout / route change)
+      document.removeEventListener("visibilitychange", onVisible);
+      setOffline(); // logout / route change
     };
   }, []);
 
