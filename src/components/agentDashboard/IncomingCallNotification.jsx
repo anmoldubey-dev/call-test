@@ -131,7 +131,11 @@ export default function IncomingCallNotification({ onAccept, department = "Gener
 
     const agentId = user.id || user.email;
     try {
-      const res = await fetch(`${API_BASE}/api/webrtc/calls/accept/${callId}?agent_id=${agentId}`, { method: 'POST' });
+      const token = sessionStorage.getItem('token') || '';
+      const res = await fetch(`${API_BASE}/api/webrtc/calls/accept/${callId}?agent_id=${agentId}`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       const data = await res.json();
       if (data.status === 'accepted' && acceptedCall) {
         onAccept(acceptedCall);
