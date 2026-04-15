@@ -150,23 +150,44 @@ export default function AgentDashboard() {
     }
   };
 
-  // Agent heartbeat — keep last_heartbeat fresh every 30 s while dashboard is open
+  // Agent heartbeat + offline-on-close
   useEffect(() => {
     const stored = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}"); } catch { return {}; } })();
     const agentIdentity = stored.email || "";
     const token = sessionStorage.getItem("token") || "";
     if (!agentIdentity || !token) return;
 
+    const API = import.meta.env.VITE_API_URL || "";
+
     const ping = () =>
-      fetch(`${import.meta.env.VITE_API_URL || ""}/api/cc/agent/heartbeat`, {
+      fetch(`${API}/api/cc/agent/heartbeat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" },
         body: JSON.stringify({ agent_identity: agentIdentity }),
       }).catch(() => {});
 
+    // Set offline immediately on tab close / navigation away using sendBeacon (fires even on unload)
+    const setOffline = () => {
+      const url = `${API}/api/cc/agent/offline`;
+      const data = JSON.stringify({ agent_identity: agentIdentity });
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([data], { type: "application/json" }));
+      }
+    };
+
+    // Also catch visibility hidden (mobile background / tab switch to close)
+    const onVisibility = () => { if (document.visibilityState === "hidden") setOffline(); };
+
     ping();
     const id = setInterval(ping, 30_000);
-    return () => clearInterval(id);
+    window.addEventListener("beforeunload", setOffline);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("beforeunload", setOffline);
+      document.removeEventListener("visibilitychange", onVisibility);
+      setOffline(); // also fires on React unmount (logout / route change)
+    };
   }, []);
 
   // Listen for outbound_agent_hangup — fires when user doesn't answer the callback.
