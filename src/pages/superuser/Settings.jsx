@@ -259,7 +259,17 @@ export default function Settings() {
         if (!res.ok) return;
         const data = await res.json();
         const cfg = data.config || {};
-        setCcConfig(prev => ({ smtp_sender: cfg.smtp_sender ?? prev.smtp_sender, smtp_password: cfg.smtp_password ?? prev.smtp_password, smtp_port: cfg.smtp_port ?? prev.smtp_port, max_wait_seconds: cfg.max_wait_seconds ?? prev.max_wait_seconds, work_start: cfg.work_start ?? prev.work_start, work_end: cfg.work_end ?? prev.work_end, timezone: cfg.timezone ?? prev.timezone, holidays: cfg.holidays ?? prev.holidays }));
+        // Map DB keys → form fields (smtp_user→smtp_sender, avg_resolution_seconds→max_wait_seconds)
+        setCcConfig(prev => ({
+          smtp_sender:      cfg.smtp_user             ?? prev.smtp_sender,
+          smtp_password:    cfg.smtp_password         ?? prev.smtp_password,
+          smtp_port:        cfg.smtp_port             ?? prev.smtp_port,
+          max_wait_seconds: cfg.avg_resolution_seconds ?? prev.max_wait_seconds,
+          work_start:       cfg.work_start            ?? prev.work_start,
+          work_end:         cfg.work_end              ?? prev.work_end,
+          timezone:         cfg.timezone              ?? prev.timezone,
+          holidays:         cfg.holidays              ?? prev.holidays,
+        }));
       } catch { /* Fail-safe default usage */ } finally { setCcLoading(false); }
     };
     load();
@@ -269,9 +279,14 @@ export default function Settings() {
   const saveCcConfig = async () => {
     setCcSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/cc/admin/config`, { method: "PUT", headers: authHeaders, body: JSON.stringify({ updates: ccConfig }) });
+      // Bulk-save via PUT — backend remaps UI keys to DB keys and reloads modules live
+      const res = await fetch(`${API_BASE}/api/cc/admin/config`, {
+        method: "PUT",
+        headers: authHeaders,
+        body: JSON.stringify({ updates: ccConfig }),
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      showToast("Call center config saved.");
+      showToast("Config saved — business hours & SMTP active immediately.");
     } catch { setError("Failed to save call center config."); } finally { setCcSaving(false); }
   };
 
