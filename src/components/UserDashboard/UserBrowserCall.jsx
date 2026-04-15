@@ -140,6 +140,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // idle → connecting → waiting (in queue, IVR plays) → active (agent/AI connected)
     // lang_pick: no agents at all, show language selector (voice + buttons)
     const [callState, setCallState] = useState("idle");
+    const [showClosedPopup, setShowClosedPopup] = useState(false);
     const [noAgents, setNoAgents] = useState(false);
     const [connectionDetails, setConnectionDetails] = useState(null);
     const [department, setDepartment] = useState("General");
@@ -255,7 +256,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             });
             if (initRes.status === 503) {
                 setCallState("idle");
-                alert("Our support line is currently closed. Please call back during business hours.");
+                setShowClosedPopup(true);
                 return;
             }
             const initData = await initRes.json();
@@ -396,6 +397,17 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     };
 
     return (
+        <>
+        {showClosedPopup && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ background: '#0f172a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 20, padding: '40px 36px', maxWidth: 380, width: '90%', textAlign: 'center', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
+                    <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
+                    <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>We're Currently Closed</h2>
+                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}>Our support line is outside business hours. Please try again during working hours.</p>
+                    <button onClick={() => setShowClosedPopup(false)} style={{ padding: '12px 32px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Got it</button>
+                </div>
+            </div>
+        )}
         <div style={{ padding: 24, background: '#0e1419', borderRadius: 12, border: '1px solid #1e2d3d', color: 'white' }}>
             <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>Live Support</h3>
             <p style={{ fontSize: 13, color: '#5a7a9a', marginBottom: 18 }}>Connect instantly with our next available agent.</p>
@@ -428,5 +440,6 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             </div>
             <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         </div>
+        </>
     );
 }
