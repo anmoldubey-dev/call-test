@@ -89,20 +89,41 @@ const AI_LANGS = [
     { code: 'ru', label: 'Russian' }, { code: 'ne', label: 'Nepali (नेपाली)' },
 ];
 
-// Detect language from transcript using Unicode script ranges
+// Detect language from transcript — tries spoken name first, then Unicode script
 const detectLangFromText = (text) => {
-    if (/[\u0900-\u097F]/.test(text)) return 'hi';   // Devanagari → Hindi (Marathi also, default Hindi)
-    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';   // Tamil
-    if (/[\u0C00-\u0C7F]/.test(text)) return 'te';   // Telugu
-    if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';   // Malayalam
-    if (/[\u0980-\u09FF]/.test(text)) return 'bn';   // Bengali
-    if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';   // Gujarati
-    if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';   // Kannada
-    if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';   // Gurmukhi (Punjabi)
-    if (/[\u0600-\u06FF]/.test(text)) return 'ar';   // Arabic/Urdu
-    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';   // Chinese
-    if (/[\u0400-\u04FF]/.test(text)) return 'ru';   // Cyrillic
-    return 'en'; // default English
+    const t = text.toLowerCase();
+    // Spoken language name matching (works when Chrome returns English phonetics)
+    if (/hindi|हिंदी|hind[ie]/.test(t)) return 'hi';
+    if (/marathi|मराठी/.test(t)) return 'mr';
+    if (/tamil|தமிழ்/.test(t)) return 'ta';
+    if (/telugu|తెలుగు/.test(t)) return 'te';
+    if (/malayalam|മലയാളം/.test(t)) return 'ml';
+    if (/bengali|বাংলা|bangla/.test(t)) return 'bn';
+    if (/gujarati|ગુજરાતી/.test(t)) return 'gu';
+    if (/kannada|ಕನ್ನಡ/.test(t)) return 'kn';
+    if (/punjabi|ਪੰਜਾਬੀ/.test(t)) return 'pa';
+    if (/urdu|اردو/.test(t)) return 'ur';
+    if (/arabic|عربي/.test(t)) return 'ar';
+    if (/french|français/.test(t)) return 'fr';
+    if (/german|deutsch/.test(t)) return 'de';
+    if (/spanish|español/.test(t)) return 'es';
+    if (/chinese|中文|mandarin/.test(t)) return 'zh';
+    if (/russian|русский/.test(t)) return 'ru';
+    if (/nepali|नेपाली/.test(t)) return 'ne';
+    if (/english/.test(t)) return 'en';
+    // Unicode script fallback (when Chrome returns native script)
+    if (/[\u0900-\u097F]/.test(text)) return 'hi';
+    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
+    if (/[\u0C00-\u0C7F]/.test(text)) return 'te';
+    if (/[\u0D00-\u0D7F]/.test(text)) return 'ml';
+    if (/[\u0980-\u09FF]/.test(text)) return 'bn';
+    if (/[\u0A80-\u0AFF]/.test(text)) return 'gu';
+    if (/[\u0C80-\u0CFF]/.test(text)) return 'kn';
+    if (/[\u0A00-\u0A7F]/.test(text)) return 'pa';
+    if (/[\u0600-\u06FF]/.test(text)) return 'ar';
+    if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
+    if (/[\u0400-\u04FF]/.test(text)) return 'ru';
+    return 'en';
 };
 
 // ---------------------------------------------------------------
@@ -150,7 +171,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         const rec = new SR();
         rec.continuous = true;
         rec.interimResults = false;
-        rec.lang = ''; // auto-detect language
+        rec.lang = 'en-IN'; // en-IN gives best results for Indian languages + English names
         langRecRef.current = rec;
         rec.onresult = (event) => {
             const transcript = event.results[event.results.length - 1][0].transcript;
@@ -300,7 +321,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     if ((callState === "waiting" || callState === "active") && connectionDetails) {
         return (
             <div style={{ padding: 20, borderRadius: 12, border: '1px solid #22c55e', background: '#080c10', textAlign: 'center', color: 'white', boxShadow: '0 0 15px rgba(34,197,94,0.1)' }}>
-                <LiveKitRoom video={false} audio={true} token={connectionDetails.token}
+                <LiveKitRoom key={connectionDetails.room} video={false} audio={true} token={connectionDetails.token}
                     serverUrl={connectionDetails.wsUrl} connect={true} onDisconnected={handleEndCall}>
                     <RoomAudioRenderer />
                     <QueueTTSReceiver />
@@ -323,8 +344,8 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                                       </p>
                                 }
                                 {aiListening && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, width: '100%', marginTop: 4 }}>
-                                        {AI_LANGS.slice(0, 6).map(lang => (
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, width: '100%', marginTop: 4, maxHeight: 160, overflowY: 'auto' }}>
+                                        {AI_LANGS.map(lang => (
                                             <button key={lang.code} onClick={() => { _stopLangDetection(); startAiCallRef.current?.(lang.code); }}
                                                 style={{ padding: '7px 4px', background: '#1e1e2e', color: '#e2e8f0', border: '1px solid #2d2d4e', borderRadius: 6, cursor: 'pointer', fontSize: 11 }}>
                                                 {lang.label.split(' ')[0]}
