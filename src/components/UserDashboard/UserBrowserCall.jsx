@@ -253,6 +253,11 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ caller_name: userName, call_type: 'browser', department, user_email: userEmail }),
             });
+            if (initRes.status === 503) {
+                setCallState("idle");
+                alert("Our support line is currently closed. Please call back during business hours.");
+                return;
+            }
             const initData = await initRes.json();
             setActiveCallId(initData.call_id);
 
