@@ -141,6 +141,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // lang_pick: no agents at all, show language selector (voice + buttons)
     const [callState, setCallState] = useState("idle");
     const [showClosedPopup, setShowClosedPopup] = useState(false);
+    const [bizHours, setBizHours] = useState(null);
     const [noAgents, setNoAgents] = useState(false);
     const [connectionDetails, setConnectionDetails] = useState(null);
     const [department, setDepartment] = useState("General");
@@ -256,6 +257,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             });
             if (initRes.status === 503) {
                 setCallState("idle");
+                fetch(`${API_BASE}/api/cc/business-hours`).then(r => r.json()).then(setBizHours).catch(() => {});
                 setShowClosedPopup(true);
                 return;
             }
@@ -403,7 +405,12 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 <div style={{ background: '#0f172a', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 20, padding: '40px 36px', maxWidth: 380, width: '90%', textAlign: 'center', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}>
                     <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
                     <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: '0 0 10px' }}>We're Currently Closed</h2>
-                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, margin: '0 0 28px' }}>Our support line is outside business hours. Please try again during working hours.</p>
+                    <p style={{ color: '#94a3b8', fontSize: 14, lineHeight: 1.6, margin: '0 0 12px' }}>Our support line is outside business hours.</p>
+                    {bizHours && (
+                        <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, padding: '10px 16px', marginBottom: 20, fontSize: 13, color: '#c7d2fe' }}>
+                            🕐 Available: <strong>{bizHours.work_start} – {bizHours.work_end}</strong> &nbsp;·&nbsp; {bizHours.work_days_names?.join(', ')}
+                        </div>
+                    )}
                     <button onClick={() => setShowClosedPopup(false)} style={{ padding: '12px 32px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', fontWeight: 700, fontSize: 14, cursor: 'pointer' }}>Got it</button>
                 </div>
             </div>
