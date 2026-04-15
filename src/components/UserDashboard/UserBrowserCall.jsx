@@ -342,13 +342,12 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                                 <h3 style={{ color: noAgents ? '#6366f1' : '#22c55e', margin: 0 }}>
                                     {noAgents ? 'AI Assistant' : 'Waiting for Agent'}
                                 </h3>
-                                {aiListening
-                                    ? <p style={{ fontSize: 13, color: '#22c55e', margin: 0 }}>🎙 Speak now — we'll detect your language</p>
-                                    : <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>
-                                        {noAgents ? 'No agents online. AI will assist you.' : 'Connecting to next available agent…'}
-                                      </p>
-                                }
-                                {aiListening && (
+                                <p style={{ fontSize: 13, color: aiListening ? '#22c55e' : '#94a3b8', margin: 0 }}>
+                                    {aiListening
+                                        ? '🎙 Speak now or tap your language below'
+                                        : noAgents ? 'No agents online — tap your language for AI assist' : 'Connecting to next available agent…'}
+                                </p>
+                                {(aiListening || noAgents || localStorage.getItem('ai_agents_enabled') === 'true') && (
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, width: '100%', marginTop: 4, maxHeight: 160, overflowY: 'auto' }}>
                                         {AI_LANGS.map(lang => (
                                             <button key={lang.code} onClick={() => { _stopLangDetection(); startAiCallRef.current?.(lang.code); }}
