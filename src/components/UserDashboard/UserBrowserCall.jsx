@@ -142,6 +142,8 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const langRecRef = useRef(null);
     // Ref so ASR callback always calls latest _startAiCall (avoids stale closure)
     const startAiCallRef = useRef(null);
+    // Prevents handleEndCall from firing when LiveKitRoom remounts during room switch
+    const isSwitchingRoomRef = useRef(false);
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
     const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai_agents_enabled') === 'true');
@@ -198,8 +200,10 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 setActiveCallId(null);
             }
             setNoAgents(false);
+            isSwitchingRoomRef.current = true;
             setConnectionDetails({ wsUrl: data.url, token: data.token, room: data.room });
             setCallState("active");
+            setTimeout(() => { isSwitchingRoomRef.current = false; }, 5000);
         } catch (e) {
             console.warn("[AI] Agent busy, staying in queue");
             // If in a room already → human agent may pick up, restart ASR so user can retry
@@ -274,6 +278,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     };
 
     const handleEndCall = async () => {
+        if (isSwitchingRoomRef.current) return; // ignore disconnect fired by room switch remount
         _stopLangDetection();
         setNoAgents(false);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
