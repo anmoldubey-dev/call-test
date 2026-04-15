@@ -38,8 +38,9 @@ function CallerTranscriptSender({ enabled }) {
     return null;
 }
 
-function QueueTTSReceiver() {
+function QueueTTSReceiver({ active }) {
     useDataChannel("tts_queue_audio", (msg) => {
+        if (!active) return; // don't play queue TTS after agent has joined
         try {
             const wavBlob = new Blob([msg.payload], { type: "audio/wav" });
             const url = URL.createObjectURL(wavBlob);
@@ -49,6 +50,7 @@ function QueueTTSReceiver() {
         } catch (e) { console.warn("[QueueTTS] audio play failed:", e); }
     });
     useDataChannel("tts_queue_text", (msg) => {
+        if (!active) return;
         try {
             const { text } = JSON.parse(new TextDecoder().decode(msg.payload));
             if (!text || !window.speechSynthesis) return;
@@ -329,7 +331,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 <LiveKitRoom key={connectionDetails.room} video={false} audio={true} token={connectionDetails.token}
                     serverUrl={connectionDetails.wsUrl} connect={true} onDisconnected={handleEndCall}>
                     <RoomAudioRenderer />
-                    <QueueTTSReceiver />
+                    <QueueTTSReceiver active={callState === "waiting"} />
                     <CallerTranscriptSender enabled={callState === "active"} />
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} />
 
