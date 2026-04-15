@@ -25,7 +25,7 @@ import { useAuth } from '../../context/AuthContext';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const WS_URL = import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, 'ws');
 
-export default function IncomingCallNotification({ onAccept, department = "General" }) {
+export default function IncomingCallNotification({ onAccept, department = "General", isOnCall = false }) {
 
   // ---------------------------------------------------------------
   // SECTION: STATE & CONTEXT INITIALIZATION
@@ -148,7 +148,7 @@ export default function IncomingCallNotification({ onAccept, department = "Gener
   // SECTION: PRIMARY RENDER (JSX)
   // ---------------------------------------------------------------
 
-  if (incomingCalls.length === 0) return null;
+  if (incomingCalls.length === 0 || isOnCall) return null;
 
   return (
     <div style={{ position: 'fixed', bottom: 30, right: 30, zIndex: 9999, display: 'flex', flexDirection: 'column', gap: 15 }}>

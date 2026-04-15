@@ -31,7 +31,7 @@ import { useAuth } from '../../context/AuthContext';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const WS_BASE = import.meta.env.VITE_WS_URL || API_BASE.replace(/^http/, 'ws');
 
-export default function OutboundCallNotification({ onAccept }) {
+export default function OutboundCallNotification({ onAccept, isOnCall = false }) {
 
   // ---------------------------------------------------------------
   // SECTION: STATE & CONTEXT INITIALIZATION
@@ -117,12 +117,14 @@ export default function OutboundCallNotification({ onAccept }) {
   // SECTION: TEMPORAL MANAGEMENT (COUNTDOWN)
   // ---------------------------------------------------------------
 
-  // Sub-process -> Timer Loop: Executes real-time pruning of expired outbound session tokens
+  // Sub-process -> Timer Loop: Prune expired tokens; auto-accept if not declined
   useEffect(() => {
     if (notifications.length === 0) return;
     const id = setInterval(() => {
       const now = Date.now();
       setNotifications(prev => {
+        const expired = prev.filter(n => n.expiresAt <= now && !n.declining && !n.accepting);
+        expired.forEach(n => handleAccept(n.outbound_id));
         const next = prev.filter(n => n.expiresAt > now);
         if (next.length < prev.length && audioRef.current) {
           audioRef.current.pause();
@@ -231,7 +233,7 @@ export default function OutboundCallNotification({ onAccept }) {
   // SECTION: PRIMARY RENDER (JSX)
   // ---------------------------------------------------------------
 
-  if (notifications.length === 0) return null;
+  if (notifications.length === 0 || isOnCall) return null;
 
   return (
     <div style={{

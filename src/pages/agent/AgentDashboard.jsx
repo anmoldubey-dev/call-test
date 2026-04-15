@@ -294,6 +294,7 @@ export default function AgentDashboard() {
 
       <IncomingCallNotification
          department={agentDept || ""}
+         isOnCall={!!livekitSession?.room}
          onAccept={async (data) => {
              // Guard: ignore duplicate events for the same call_id
              if (!data?.call_id || acceptedCallsRef.current.has(data.call_id)) return;
@@ -340,6 +341,7 @@ export default function AgentDashboard() {
       
       {/* Outbound callback notifications — fully self-contained component */}
       <OutboundCallNotification
+        isOnCall={!!livekitSession?.room}
         onAccept={(tokenData) => {
           // Guard: skip if a LiveKit session is already running
           if (livekitSession?.room) {

@@ -146,7 +146,7 @@ function CallStatusWatcher({ onAgentJoined }) {
 // ---------------------------------------------------------------
 
 export default function UserBrowserCall({ userName = "Guest User", userEmail = "guest" }) {
-    const [callState, setCallState] = useState("idle"); // idle, connecting, waiting, active, ai
+    const [callState, setCallState] = useState("idle"); // idle, connecting, waiting, active, ai, lang_pick
     const [connectionDetails, setConnectionDetails] = useState(null);
     const [department, setDepartment] = useState("General");
     const [activeCallId, setActiveCallId] = useState(null);
@@ -154,17 +154,36 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
 
-    // AI fallback: if no agent answers in 20s and AI agents are enabled, route to AI
-    const _startAiCall = async () => {
+    const AI_LANGS = [
+      { code: 'en', label: 'English' }, { code: 'hi', label: 'Hindi' },
+      { code: 'mr', label: 'Marathi' }, { code: 'ta', label: 'Tamil' },
+      { code: 'te', label: 'Telugu' }, { code: 'ml', label: 'Malayalam' },
+    ];
+
+    // Connect to AI agent with chosen language
+    const _startAiCall = async (lang = 'en') => {
         try {
-            const res = await fetch(`${API_BASE}/livekit/token?lang=en&llm=ollama`);
+            const res = await fetch(`${API_BASE}/livekit/token?lang=${lang}&llm=ollama`);
+            if (!res.ok) throw new Error('AI busy');
             const data = await res.json();
             setConnectionDetails({ wsUrl: data.url, token: data.token, room: data.room });
-            setCallState("active"); // AI worker joins automatically
+            setCallState("active");
         } catch (e) {
             console.error("AI fallback failed", e);
+            // AI busy — send email notification then return to idle
+            if (activeCallId) {
+                fetch(`${API_BASE}/api/webrtc/calls/cancel/${activeCallId}`, { method: 'POST' }).catch(() => {});
+                setActiveCallId(null);
+            }
             setCallState("idle");
+            alert("All agents are currently busy. We will reach out to you shortly via email.");
         }
+    };
+
+    // Show language picker before AI call
+    const _promptLangThenAi = () => {
+        clearTimeout(noAgentTimer.current);
+        setCallState("lang_pick");
     };
 
     const startCall = async () => {
@@ -178,9 +197,9 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             const initData = await initRes.json();
             setActiveCallId(initData.call_id);
 
-            // no_agents = no human online → go AI immediately if enabled
+            // no_agents = no human online → pick language then AI if enabled
             if (initData.status === 'no_agents' && localStorage.getItem('ai_agents_enabled') === 'true') {
-                await _startAiCall();
+                _promptLangThenAi();
                 return;
             }
 
@@ -194,11 +213,9 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             });
             setCallState("waiting");
 
-            // AI fallback after 20s if still waiting
+            // AI fallback after 20s if still waiting → show language picker
             if (localStorage.getItem('ai_agents_enabled') === 'true') {
-                noAgentTimer.current = setTimeout(() => {
-                    if (setCallState) _startAiCall();
-                }, 20000);
+                noAgentTimer.current = setTimeout(() => _promptLangThenAi(), 20000);
             }
         } catch (err) {
             console.error("Call failed", err);
@@ -222,6 +239,32 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // ---------------------------------------------------------------
     // SECTION: PRIMARY RENDER (JSX)
     // ---------------------------------------------------------------
+
+    if (callState === "lang_pick") {
+        return (
+            <div style={{ padding: 24, background: '#0e1419', borderRadius: 12, border: '1px solid #1e2d3d', color: 'white' }}>
+                <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>Select Language</h3>
+                <p style={{ fontSize: 13, color: '#5a7a9a', marginBottom: 18 }}>No agents available. Connect to our AI assistant in your preferred language.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                    {AI_LANGS.map(lang => (
+                        <button
+                            key={lang.code}
+                            onClick={() => _startAiCall(lang.code)}
+                            style={{ padding: '12px', background: '#6366f1', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}
+                        >
+                            {lang.label}
+                        </button>
+                    ))}
+                </div>
+                <button
+                    onClick={handleEndCall}
+                    style={{ marginTop: 14, width: '100%', padding: '10px', background: 'transparent', color: '#5a7a9a', border: '1px solid #1e2d3d', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
+                >
+                    Cancel
+                </button>
+            </div>
+        );
+    }
 
     if ((callState === "waiting" || callState === "active") && connectionDetails) {
         return (
