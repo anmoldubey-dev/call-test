@@ -65,36 +65,20 @@ export function Dashboard() {
   // SECTION: DATA SYNCHRONIZATION (API)
   // ---------------------------------------------------------------
 
-  // 🌟 TARGET C: MAGIC AUTO-REFRESH LOGIC (Silent Fetch)
-  // Action Trigger -> fetchData()-> Pulls relational agent and traffic flow datasets
+  // Action Trigger -> fetchData()-> Single request for all realtime DB data
   const fetchData = useCallback((isSilent = false) => {
     if (!isSilent) setLoading(true);
 
-    const params = new URLSearchParams({
-      period: selectedTimeFilter,
-      date: selectedDate,
-      channel: selectedChannel,
-      shift: selectedShift,
-    }).toString();
-
-    // Sub-process -> Promise.all: Executes concurrent signaling for efficiency
-    Promise.all([
-      fetch(`${API_BASE}/api/agents?${params}`, {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
-      }).then((res) => {
-        if (!res.ok) throw new Error(`Agents API failed: ${res.status}`);
+    fetch(`${API_BASE}/api/superuser/realtime`, {
+      headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Realtime API failed: ${res.status}`);
         return res.json();
-      }),
-      fetch(`${API_BASE}/api/sankey?${params}`, {
-        headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
-      }).then((res) => {
-        if (!res.ok) throw new Error(`Sankey API failed: ${res.status}`);
-        return res.json();
-      }),
-    ])
-      .then(([agentsData, sankeyData]) => {
-        setDbAgents(agentsData || []);
-        setDbSankey(sankeyData || { nodes: [], links: [] });
+      })
+      .then((data) => {
+        setDbAgents(data.agents || []);
+        setDbSankey(data.sankey || { nodes: [], links: [] });
         if (!isSilent) setLoading(false);
       })
       .catch((err) => {
@@ -102,7 +86,7 @@ export function Dashboard() {
         setError(err.message);
         if (!isSilent) setLoading(false);
       });
-  }, [selectedTimeFilter, selectedDate, selectedChannel, selectedShift]);
+  }, []);
 
   // ---------------------------------------------------------------
   // SECTION: LIFECYCLE & INTERACTION HANDLERS
@@ -224,7 +208,7 @@ export function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
               <BubbleChart agents={dbAgents} onAgentClick={handleAgentClick} />
-              <SankeyChart stats={{ sankeyRaw: dbSankey }} />
+              <SankeyChart data={dbSankey} />
             </div>
             <div>
               <RiskPanel agents={dbAgents} onAgentClick={handleAgentClick} />
