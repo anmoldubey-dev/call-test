@@ -41,6 +41,7 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
   const agentDept  = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}').department || ''; } catch { return ''; } })();
 
   const [notifications, setNotifications] = useState([]);
+  const [snooze, setSnooze] = useState(null); // { endsAt, minutes }
   const wsRef = useRef(null);
   const audioRef = useRef(null);
 
@@ -210,8 +211,13 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
       prev.map(n => n.outbound_id === outbound_id ? { ...n, declineReason: value } : n)
     );
 
+  const setSnoozeMin = (outbound_id, value) =>
+    setNotifications(prev =>
+      prev.map(n => n.outbound_id === outbound_id ? { ...n, snoozeMinutes: value } : n)
+    );
+
   // Action Trigger -> submitDecline()-> Commits a snooze request with metadata to the backend
-  const submitDecline = async (outbound_id, reason) => {
+  const submitDecline = async (outbound_id, reason, snoozeMinutes) => {
     try {
       await fetch(`${API_BASE}/api/cc/outbound/decline`, {
         method: 'POST',
@@ -219,21 +225,44 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
         body: JSON.stringify({
           outbound_id,
           agent_identity: agentEmail,
-          reason,
-          snooze_minutes: 10,
+          reason: reason || 'Snoozed',
+          snooze_minutes: snoozeMinutes || 5,
         }),
       });
     } catch (e) {
       console.error('[OutboundCallNotification] Decline failed:', e);
     }
     removeNotification(outbound_id);
+    setSnooze({ endsAt: Date.now() + (snoozeMinutes || 5) * 60_000, minutes: snoozeMinutes || 5 });
   };
+
+  const handleResume = async () => {
+    setSnooze(null);
+    try {
+      await fetch(`${API_BASE}/api/cc/outbound/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_identity: agentEmail }),
+      });
+    } catch (e) {
+      console.error('[OutboundCallNotification] Resume failed:', e);
+    }
+  };
+
+  // Clear snooze when timer expires
+  React.useEffect(() => {
+    if (!snooze) return;
+    const remaining = snooze.endsAt - Date.now();
+    if (remaining <= 0) { setSnooze(null); return; }
+    const t = setTimeout(() => setSnooze(null), remaining);
+    return () => clearTimeout(t);
+  }, [snooze]);
 
   // ---------------------------------------------------------------
   // SECTION: PRIMARY RENDER (JSX)
   // ---------------------------------------------------------------
 
-  if (notifications.length === 0 || isOnCall) return null;
+  if ((notifications.length === 0 && !snooze) || isOnCall) return null;
 
   return (
     <div style={{
@@ -241,6 +270,30 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
       display: 'flex', flexDirection: 'column', gap: 12,
     }}>
       <audio ref={audioRef} src="/ringtone.mp3" loop />
+
+      {snooze && (
+        <div style={{
+          background: '#0f172a', border: '1px solid #334155',
+          padding: 16, borderRadius: 14, color: 'white', width: 340,
+        }}>
+          <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 10 }}>
+            Outbound snoozed for {snooze.minutes}min — resumes in{' '}
+            <span style={{ color: '#f59e0b', fontWeight: 700 }}>
+              {Math.max(0, Math.ceil((snooze.endsAt - Date.now()) / 60_000))}m
+            </span>
+          </div>
+          <button
+            onClick={handleResume}
+            style={{
+              width: '100%', padding: '9px', borderRadius: 8, border: 'none',
+              background: 'linear-gradient(135deg,#6366f1,#4f46e5)',
+              color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            Resume Now
+          </button>
+        </div>
+      )}
 
       {notifications.map(n => {
         const secs = Math.max(0, Math.ceil((n.expiresAt - Date.now()) / 1000));
@@ -307,13 +360,25 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
               </div>
             ) : (
               <div>
-                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>
-                  Reason for declining (required):
+                <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 6 }}>Snooze for:</div>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+                  {[2, 5, 10].map(m => (
+                    <button
+                      key={m}
+                      onClick={() => setSnoozeMin(n.outbound_id, m)}
+                      style={{
+                        flex: 1, padding: '7px 0', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                        background: (n.snoozeMinutes || 5) === m ? '#f59e0b' : 'rgba(245,158,11,0.1)',
+                        border: '1px solid rgba(245,158,11,0.35)',
+                        color: (n.snoozeMinutes || 5) === m ? '#0f172a' : '#f59e0b',
+                      }}
+                    >{m}m</button>
+                  ))}
                 </div>
                 <textarea
                   value={n.declineReason}
                   onChange={e => setReason(n.outbound_id, e.target.value)}
-                  placeholder="e.g. On another call, will retry later…"
+                  placeholder="Reason (optional)…"
                   rows={2}
                   style={{
                     width: '100%', background: '#1e293b',
@@ -331,22 +396,15 @@ export default function OutboundCallNotification({ onAccept, isOnCall = false })
                       background: 'rgba(100,116,139,0.1)', border: '1px solid #334155',
                       color: '#94a3b8', fontSize: 13,
                     }}
-                  >
-                    Back
-                  </button>
+                  >Back</button>
                   <button
-                    onClick={() => submitDecline(n.outbound_id, n.declineReason)}
-                    disabled={!n.declineReason.trim()}
+                    onClick={() => submitDecline(n.outbound_id, n.declineReason, n.snoozeMinutes || 5)}
                     style={{
-                      flex: 1, padding: '9px', borderRadius: 8, cursor: n.declineReason.trim() ? 'pointer' : 'not-allowed',
-                      background: n.declineReason.trim() ? '#ef4444' : 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.35)',
-                      color: n.declineReason.trim() ? 'white' : '#ef4444',
-                      fontSize: 13, fontWeight: 700,
+                      flex: 1, padding: '9px', borderRadius: 8, cursor: 'pointer',
+                      background: '#ef4444', border: '1px solid rgba(239,68,68,0.35)',
+                      color: 'white', fontSize: 13, fontWeight: 700,
                     }}
-                  >
-                    Confirm Decline
-                  </button>
+                  >Snooze {n.snoozeMinutes || 5}m</button>
                 </div>
               </div>
             )}
