@@ -233,7 +233,7 @@ export default function AgentDashboard() {
             endCall();
             setActiveTab("overview");
           }
-          if (msg.type === "outbound_auto_accept" && msg.agent_identity === agentEmail && !livekitSession?.room) {
+          if (msg.type === "outbound_auto_accept" && msg.agent_identity === agentEmail && !isActive) {
             isOutboundCallRef.current = true;
             setLivekitSession({ url: msg.url, token: msg.token, room: msg.room });
             setActiveTab("live-console");
