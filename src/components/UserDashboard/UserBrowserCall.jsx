@@ -63,7 +63,7 @@ function QueueTTSReceiver({ active }) {
     return null;
 }
 
-function CallStatusWatcher({ onAgentJoined }) {
+function CallStatusWatcher({ onAgentJoined, onAgentLeft }) {
     const remoteParticipants = useRemoteParticipants();
     const hasTriggered = useRef(false);
     useEffect(() => {
@@ -71,7 +71,11 @@ function CallStatusWatcher({ onAgentJoined }) {
             hasTriggered.current = true;
             onAgentJoined();
         }
-    }, [remoteParticipants, onAgentJoined]);
+        // If agent had joined and now all left → end call
+        if (remoteParticipants.length === 0 && hasTriggered.current) {
+            onAgentLeft();
+        }
+    }, [remoteParticipants, onAgentJoined, onAgentLeft]);
     return null;
 }
 
@@ -333,7 +337,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     <RoomAudioRenderer />
                     <QueueTTSReceiver active={callState === "waiting"} />
                     <CallerTranscriptSender enabled={callState === "active"} />
-                    <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} />
+                    <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         {callState === "waiting" ? (

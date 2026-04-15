@@ -197,6 +197,12 @@ export default function AgentDashboard() {
             endCall();
             setActiveTab("overview");
           }
+          if (msg.type === "outbound_auto_accept" && msg.agent_identity === agentEmail && !livekitSession?.room) {
+            isOutboundCallRef.current = true;
+            setLivekitSession({ url: msg.url, token: msg.token, room: msg.room });
+            setActiveTab("live-console");
+            startCall();
+          }
           if (msg.type === "conference_invite" && msg.data?.room_name) {
             setConfInvite(msg.data);
           }

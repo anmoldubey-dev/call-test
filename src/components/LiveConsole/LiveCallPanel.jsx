@@ -104,6 +104,9 @@ export default function LiveCallPanel({ onNewCallerText }) {
   const onNewCallerTextRef = useRef(onNewCallerText);
   useEffect(() => { onNewCallerTextRef.current = onNewCallerText; }, [onNewCallerText]);
 
+  // Stable ref for handleEndCall so ParticipantDisconnected never captures a stale closure
+  const handleEndCallRef = useRef(null);
+
   // Sub-process -> isMutedRef: Prevents stale closure capture in speech recognition results
   const isMutedRef = useRef(isMuted);
   useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
@@ -145,6 +148,10 @@ export default function LiveCallPanel({ onNewCallerText }) {
       addLog(`✕ ${p.name || p.identity} left`);
       setRemoteTracks(prev => { const u = { ...prev }; delete u[p.identity]; return u; });
       refreshParticipants(room);
+      // End call if no remote participants remain (other side hung up)
+      if (connectedRef.current && room.remoteParticipants.size === 0) {
+        handleEndCallRef.current?.();
+      }
     });
 
     room.on(RoomEvent.LocalTrackPublished, (pub) => {
@@ -318,12 +325,25 @@ export default function LiveCallPanel({ onNewCallerText }) {
   // ---------------------------------------------------------------
 
   // Action Trigger -> handleEndCall()-> Terminates signaling room and backend call session
-  const handleEndCall = async () => {
+  // Keep ref fresh so room event listeners always call the latest version
+  const handleEndCall = handleEndCallRef.current = async () => {
     connectedRef.current = false;
     roomRef.current?.disconnect();
     if (backendCallId) {
       try { await fetch(`${API_BASE}/calls/${backendCallId}/end`, { method: 'POST' }); } catch (_) { }
     }
+    // Also notify CC backend to set agent status back to 'online' (enables outbound callbacks)
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('user') || '{}');
+      const agentIdentity = stored.email || '';
+      if (agentIdentity) {
+        await fetch(`${API_BASE}/cc/agent/end-call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: livekitSession?.room || backendCallId || '', agent_identity: agentIdentity }),
+        });
+      }
+    } catch (_) { }
     endCall();
   };
 
