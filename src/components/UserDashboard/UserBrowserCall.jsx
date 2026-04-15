@@ -96,8 +96,16 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const [activeCallId, setActiveCallId] = useState(null);
     const [aiListening, setAiListening] = useState(false);
     const langRecRef = useRef(null);
+    // Ref so ASR callback always calls latest _startAiCall (avoids stale closure)
+    const startAiCallRef = useRef(null);
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
+    const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai_agents_enabled') === 'true');
+    const toggleAi = () => {
+        const next = !aiEnabled;
+        localStorage.setItem('ai_agents_enabled', String(next));
+        setAiEnabled(next);
+    };
 
     // ---------------------------------------------------------------
     // AI LANGUAGE DETECTION
@@ -113,7 +121,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     };
 
     // Plays IVR voice prompt + starts ASR to detect language keyword
-    const _startLangDetection = useCallback(() => {
+    const _startLangDetection = () => {
         if (window.speechSynthesis) {
             window.speechSynthesis.cancel();
             const utt = new SpeechSynthesisUtterance(
@@ -131,12 +139,12 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         rec.onresult = (event) => {
             const t = event.results[event.results.length - 1][0].transcript.toLowerCase();
             for (const [kw, code] of Object.entries(LANG_KEYWORDS)) {
-                if (t.includes(kw)) { _stopLangDetection(); _startAiCall(code); return; }
+                if (t.includes(kw)) { _stopLangDetection(); startAiCallRef.current?.(code); return; }
             }
         };
         rec.onend = () => { if (langRecRef.current) try { rec.start(); } catch (_) { } };
         try { rec.start(); setAiListening(true); } catch (_) { }
-    }, []);
+    };
 
     // Connect to AI agent with chosen language
     // On success: cancel original queue call, switch to AI room
@@ -171,16 +179,16 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
         }
     };
 
+    // Keep ref pointing to latest _startAiCall so ASR callback avoids stale closure
+    useEffect(() => { startAiCallRef.current = _startAiCall; });
+
     // While in queue with a room + AI enabled → play IVR prompt after 4s (let queue TTS settle)
     useEffect(() => {
         if (callState !== "waiting" || !connectionDetails) return;
         if (localStorage.getItem('ai_agents_enabled') !== 'true') return;
         const t = setTimeout(() => _startLangDetection(), 4000);
-        return () => {
-            clearTimeout(t);
-            _stopLangDetection();
-        };
-    }, [callState, connectionDetails]);
+        return () => { clearTimeout(t); _stopLangDetection(); };
+    }, [callState, connectionDetails]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Cleanup on unmount
     useEffect(() => () => _stopLangDetection(), []);
@@ -201,8 +209,9 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
             setActiveCallId(initData.call_id);
 
             // No human agents online → if AI enabled, show lang picker with IVR prompt
+            const aiOn = localStorage.getItem('ai_agents_enabled') === 'true';
             if (initData.status === 'no_agents') {
-                if (localStorage.getItem('ai_agents_enabled') === 'true') {
+                if (aiOn) {
                     setCallState("lang_pick");
                     setTimeout(() => _startLangDetection(), 300);
                 } else {
@@ -343,6 +352,15 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                 {callState === 'connecting' ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Phone size={18} />}
                 {callState === 'connecting' ? 'Connecting...' : 'Call Agent Now'}
             </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
+                <span style={{ fontSize: 11, color: '#334155' }}>AI Agent Fallback</span>
+                <button onClick={toggleAi} style={{
+                    padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                    background: aiEnabled ? '#6366f1' : '#1e2d3d', color: aiEnabled ? 'white' : '#5a7a9a',
+                }}>
+                    {aiEnabled ? 'ON' : 'OFF'}
+                </button>
+            </div>
             <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
         </div>
     );
