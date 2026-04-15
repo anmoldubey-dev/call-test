@@ -250,6 +250,14 @@ export default function Settings() {
   const [ccConfig, setCcConfig] = useState({ smtp_sender: "", smtp_password: "", smtp_port: "587", max_wait_seconds: "300", work_start: "09:00", work_end: "18:00", timezone: "UTC", holidays: "" });
   const [ccLoading, setCcLoading] = useState(true);
   const [ccSaving, setCcSaving] = useState(false);
+  const [bizStatus, setBizStatus] = useState(null); // {is_open, current_time, work_start, work_end}
+
+  const fetchBizStatus = async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/cc/business-hours`, { headers: authHeaders });
+      if (r.ok) setBizStatus(await r.json());
+    } catch { /* non-critical */ }
+  };
 
   // Sub-process -> load(): Hydrates operational configuration from signaling hub
   useEffect(() => {
@@ -273,6 +281,7 @@ export default function Settings() {
       } catch { /* Fail-safe default usage */ } finally { setCcLoading(false); }
     };
     load();
+    fetchBizStatus();
   }, []);
 
   // Action Trigger -> saveCcConfig()-> Commits operational metadata to the admin gateway
@@ -287,6 +296,7 @@ export default function Settings() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       showToast("Config saved — business hours & SMTP active immediately.");
+      fetchBizStatus(); // refresh live status badge immediately after save
     } catch { setError("Failed to save call center config."); } finally { setCcSaving(false); }
   };
 
@@ -335,7 +345,17 @@ export default function Settings() {
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: 0 }}>Call Center Configuration</h2>
             <p style={{ fontSize: 12, color: "#64748b", marginTop: 4 }}>SMTP alerts, queue limits, and business hours</p>
           </div>
-          {ccLoading && <span style={{ fontSize: 12, color: "#5a7a9a" }}>Loading…</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {bizStatus && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", borderRadius: 20, background: bizStatus.is_open ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)", border: `1px solid ${bizStatus.is_open ? "rgba(16,185,129,0.4)" : "rgba(239,68,68,0.4)"}` }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: bizStatus.is_open ? "#10B981" : "#EF4444", display: "inline-block", boxShadow: bizStatus.is_open ? "0 0 6px #10B981" : "0 0 6px #EF4444" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: bizStatus.is_open ? "#10B981" : "#EF4444" }}>
+                  {bizStatus.is_open ? "OPEN" : "CLOSED"} · {bizStatus.work_start}–{bizStatus.work_end} {bizStatus.timezone}
+                </span>
+              </div>
+            )}
+            {ccLoading && <span style={{ fontSize: 12, color: "#5a7a9a" }}>Loading…</span>}
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
