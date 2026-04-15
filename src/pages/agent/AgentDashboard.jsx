@@ -191,6 +191,20 @@ export default function AgentDashboard() {
     };
   }, []);
 
+  // On mount: re-register with backend if department already known (survives backend restarts)
+  useEffect(() => {
+    if (!agentDept) return; // picker will call agent/online when they select
+    const stored       = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}"); } catch { return {}; } })();
+    const agentIdentity = stored.email || "";
+    const tok          = sessionStorage.getItem("token") || "";
+    if (!agentIdentity || !tok) return;
+    fetch(`${API_BASE}/api/cc/agent/online`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+      body:    JSON.stringify({ agent_identity: agentIdentity, agent_name: stored.name || agentIdentity, department: agentDept, status: "online" }),
+    }).catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Listen for outbound_agent_hangup — fires when user doesn't answer the callback.
   // Disconnects the agent's LiveKit room so they aren't left waiting indefinitely.
   useEffect(() => {
