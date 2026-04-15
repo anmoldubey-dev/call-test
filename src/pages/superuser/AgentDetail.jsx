@@ -133,7 +133,7 @@ export function AgentDetail() {
   const fetchAgentData = useCallback((isSilent = false) => {
     if (!isSilent) setLoading(true);
 
-    fetch(`${API_BASE}/api/agents/${id}`, {
+    fetch(`${API_BASE}/api/superuser/agents/${id}`, {
       headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` }
     })
       .then(res => {
@@ -165,7 +165,7 @@ export function AgentDetail() {
   // Error Branch -> Renders critical connection failure state
   if (error || !data || data.error) return (
     <div className="h-screen bg-[#020617] text-rose-500 flex justify-center items-center font-mono">
-      CRITICAL ERROR: Agent profile offline. Make sure Backend is on Port 5000.
+      CRITICAL ERROR: Agent profile not found. Make sure Backend is running on port 8000.
     </div>
   );
 

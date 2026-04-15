@@ -159,12 +159,12 @@ export default function Settings() {
   const fetchAgents = async (isSilent = false) => {
     if (!isSilent) { setLoading(true); setError(""); }
     try {
-      const res = await fetch(`${API_BASE}/api/agents`, { headers: authHeaders });
+      const res = await fetch(`${API_BASE}/api/superuser/realtime`, { headers: authHeaders });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setAgents(Array.isArray(data) ? data : []);
+      setAgents(Array.isArray(data.agents) ? data.agents : []);
     } catch {
-      if (!isSilent) setError("Failed to load agents. Is the backend running on Port 5000?");
+      if (!isSilent) setError("Failed to load agents. Is the backend running on port 8000?");
     } finally {
       if (!isSilent) setLoading(false);
     }
@@ -255,7 +255,7 @@ export default function Settings() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/admin/config`, { headers: authHeaders });
+        const res = await fetch(`${API_BASE}/api/cc/admin/config`, { headers: authHeaders });
         if (!res.ok) return;
         const data = await res.json();
         const cfg = data.config || {};
@@ -269,7 +269,7 @@ export default function Settings() {
   const saveCcConfig = async () => {
     setCcSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/config`, { method: "PUT", headers: authHeaders, body: JSON.stringify({ updates: ccConfig }) });
+      const res = await fetch(`${API_BASE}/api/cc/admin/config`, { method: "PUT", headers: authHeaders, body: JSON.stringify({ updates: ccConfig }) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       showToast("Call center config saved.");
     } catch { setError("Failed to save call center config."); } finally { setCcSaving(false); }

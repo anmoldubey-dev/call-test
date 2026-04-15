@@ -49,7 +49,7 @@ export function Agents() {
   const fetchAgents = useCallback((isSilent = false) => {
     if (!isSilent) setLoading(true);
 
-    fetch(`${API_BASE}/api/agents`, {
+    fetch(`${API_BASE}/api/superuser/realtime`, {
       headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` }
     })
       .then(res => {
@@ -57,7 +57,7 @@ export function Agents() {
         return res.json();
       })
       .then(data => {
-        setDbAgents(data);
+        setDbAgents(data.agents || []);
         if (!isSilent) setLoading(false);
       })
       .catch(err => {
@@ -168,7 +168,7 @@ export function Agents() {
           )}
           {error && (
             <div className="p-10 text-center text-rose-400 font-mono text-sm">
-              ⚠️ Error: {error}. Check if backend is running on port 5000.
+              ⚠️ Error: {error}. Check if backend is running on port 8000.
             </div>
           )}
           {!loading && !error && (
