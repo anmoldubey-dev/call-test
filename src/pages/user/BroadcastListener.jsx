@@ -53,7 +53,6 @@ function BroadcastRoomWatcher({ onBroadcastEnded }) {
 // ---------------------------------------------------------------
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
-const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880';
 
 // ---------------------------------------------------------------
 // SECTION: MAIN LISTENER COMPONENT
@@ -63,6 +62,7 @@ export default function BroadcastListener() {
     // Initialization -> Contextual state retrieval and signaling buffers
     const { id } = useParams();
     const [token, setToken] = useState(null);
+    const [livekitUrl, setLivekitUrl] = useState(import.meta.env.VITE_LIVEKIT_URL || 'ws://127.0.0.1:7880');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [hasJoined, setHasJoined] = useState(false);
@@ -75,12 +75,15 @@ export default function BroadcastListener() {
     useEffect(() => {
         const fetchToken = async () => {
             try {
-                const identity = `listener-${Date.now()}`;
-                // Internal Call -> api.get(): Requests signed token for the specific broadcast ID
-                const res = await fetch(`${API_BASE}/api/webrtc/livekit/token?room=${id}&identity=${identity}&name=Listener`);
-                if (!res.ok) throw new Error("Broadcast not found or ended.");
+                // Internal Call -> api.get(): Requests listener token scoped to the broadcast's actual room
+                const res = await fetch(`${API_BASE}/api/webrtc/broadcast/${id}/token`);
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    throw new Error(err.detail || "Broadcast not found or ended.");
+                }
                 const data = await res.json();
                 setToken(data.token);
+                if (data.livekit_url) setLivekitUrl(data.livekit_url);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -144,7 +147,7 @@ export default function BroadcastListener() {
                             video={false}
                             audio={false}
                             token={token}
-                            serverUrl={LIVEKIT_URL}
+                            serverUrl={livekitUrl}
                             connect={true}
                             onDisconnected={() => setError("The broadcast has ended.")}
                         >

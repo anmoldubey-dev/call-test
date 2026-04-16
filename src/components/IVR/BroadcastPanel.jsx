@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { DEPARTMENTS } from '../../constants/departments.js';
-import { Room, RoomEvent, Track } from 'livekit-client';
+import { Room, RoomEvent, ConnectionState, Track } from 'livekit-client';
 import {
   Radio, Users, Play, Square, Send, Mail,
   Copy, Check, RefreshCw, Clock, Volume2, VolumeX,
@@ -159,15 +159,20 @@ export default function BroadcastPanel() {
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `Failed (${res.status})`); }
       const data = await res.json();
+      if (!data.speaker_token) throw new Error('LiveKit token generation failed. Ensure the livekit Python SDK is installed and LIVEKIT_API_KEY/SECRET are set.');
       setActiveBroadcast(data);
 
+      const livekitUrl = data.livekit_url || LIVEKIT_URL;
       const room = new Room();
       roomRef.current = room;
       room.on(RoomEvent.ParticipantConnected, () => setListenerCount(p => p + 1));
       room.on(RoomEvent.ParticipantDisconnected, () => setListenerCount(p => Math.max(0, p - 1)));
       room.on(RoomEvent.Connected, () => setBroadcasting(true));
 
-      await room.connect(LIVEKIT_URL, data.speaker_token);
+      await room.connect(livekitUrl, data.speaker_token);
+      if (room.state !== ConnectionState.Connected) {
+        await new Promise((resolve) => room.once(RoomEvent.Connected, resolve));
+      }
       await room.localParticipant.setMicrophoneEnabled(true);
       setTab('active');
       fetchActive();
