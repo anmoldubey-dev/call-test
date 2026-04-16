@@ -228,8 +228,22 @@ export default function LiveCallPanel({ onNewCallerText }) {
 
   // Sub-process -> hardware sync: Maps local mute state to active LiveKit tracks
   useEffect(() => {
-    roomRef.current?.localParticipant?.setMicrophoneEnabled(!isMuted).catch(() => { });
-  }, [isMuted]);
+    if (!roomRef.current) return;
+    // On hold: silence the mic regardless of mute toggle; on resume: respect mute state
+    roomRef.current.localParticipant?.setMicrophoneEnabled(!isMuted && !isHeld).catch(() => { });
+  }, [isMuted, isHeld]);
+
+  // Sub-process -> hold audio sync: Mute/unmute remote audio elements when hold state changes
+  useEffect(() => {
+    // Find all audio elements attached by LiveKit and toggle their mute
+    const audioEls = document.querySelectorAll('audio[autoplay]');
+    audioEls.forEach(el => { el.muted = isHeld; });
+    if (isHeld) {
+      addLog('⏸ Call placed on hold');
+    } else if (connected) {
+      addLog('▶ Call resumed');
+    }
+  }, [isHeld]);
 
   // ---------------------------------------------------------------
   // SECTION: SPEECH RECOGNITION (BROWSER ASR)
@@ -372,7 +386,18 @@ export default function LiveCallPanel({ onNewCallerText }) {
     addLog(`↷ ${successMsg}`);
     setTranscript(prev => [...prev, { speaker: 'system', text: successMsg }]);
     setTransferring(false);
-    setTimeout(() => { setShowTransferModal(false); setTransferDone(null); }, 2000);
+
+    if (transferType === 'cold') {
+      // Cold transfer: agent leaves immediately after handing off
+      setTimeout(async () => {
+        setShowTransferModal(false);
+        setTransferDone(null);
+        await handleEndCallRef.current?.();
+      }, 1800);
+    } else {
+      // Warm transfer: agent stays until new agent joins, then can manually end
+      setTimeout(() => { setShowTransferModal(false); setTransferDone(null); }, 2000);
+    }
   };
 
   const local = roomRef.current?.localParticipant;
@@ -430,7 +455,16 @@ export default function LiveCallPanel({ onNewCallerText }) {
             {isMuted ? '🔇 Unmute' : '🎙 Mute'}
           </button>
 
-          <button onClick={toggleHold} style={{
+          <button onClick={async () => {
+            toggleHold();
+            // Notify backend for logging (non-fatal)
+            try {
+              await fetch(`${API_BASE}/webrtc/calls/hold`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: livekitSession?.room || backendCallId || '', action: isHeld ? 'resume' : 'hold' }),
+              });
+            } catch (_) {}
+          }} style={{
             background: isHeld ? 'rgba(234,179,8,0.12)' : 'rgba(255,255,255,0.04)',
             color: isHeld ? '#facc15' : '#8899aa',
             border: `1px solid ${isHeld ? 'rgba(234,179,8,0.25)' : 'rgba(255,255,255,0.07)'}`,
