@@ -8,8 +8,9 @@ import { OverviewTab, AnalyticsTab, SettingsTab } from "../../components/agentDa
 import { useState, useEffect, useRef } from "react";
 import { PhoneIncoming } from "lucide-react";
 
-import { useCall } from "../../context/CallContext"; 
-import LiveCallConsole from "../../components/LiveConsole/LiveCallConsole"; 
+import { useCall } from "../../context/CallContext";
+import LiveCallConsole from "../../components/LiveConsole/LiveCallConsole";
+import { usePushNotifications } from "../../hooks/usePushNotifications";
 
 import ActiveCallsPanel from "../../components/IVR/ActiveCallsPanel";
 import BroadcastPanel from "../../components/IVR/BroadcastPanel";
@@ -89,6 +90,9 @@ export default function AgentDashboard() {
     try { return JSON.parse(sessionStorage.getItem("user") || "{}").department || null; } catch { return null; }
   });
   const { isActive, startCall, endCall, setLivekitSession, livekitSession } = useCall();
+
+  const _agentEmail = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}").email || ""; } catch { return ""; } })();
+  usePushNotifications(_agentEmail);
 
   // Guard: prevent the same call_id from being accepted more than once
   const acceptedCallsRef   = useRef(new Set());

@@ -10,6 +10,7 @@ import BroadcastPanel from "../components/IVR/BroadcastPanel";
 import QueueWaitTimesPanel from "../components/superuser/QueueWaitTimesPanel";
 import LiveCallConsole from "../components/LiveConsole/LiveCallConsole";
 import { useCall } from "../context/CallContext";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -20,6 +21,9 @@ export default function SuperuserPage() {
   const [confInvite, setConfInvite] = useState(null);
 
   const { setLivekitSession, startCall, livekitSession } = useCall();
+
+  const _suEmail = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}").email || ""; } catch { return ""; } })();
+  usePushNotifications(_suEmail);
 
   const handleLogout = () => {
     sessionStorage.removeItem("token");
