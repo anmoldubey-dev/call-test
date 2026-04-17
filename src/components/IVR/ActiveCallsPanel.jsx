@@ -22,12 +22,12 @@
 // ||
 // ==================================================================================
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import {
-  Phone, PhoneOff, Play, PhoneForwarded,
-  ChevronDown, RefreshCw, AlertCircle, Clock,
-  MessageSquare, Activity, Search, X, Trash2,
+  PhoneOff, Play, PhoneForwarded,
+  ChevronDown, RefreshCw, AlertCircle,
+  MessageSquare, Activity, X,
   Monitor, PhoneCall, ShieldAlert
 } from 'lucide-react';
 import { useActiveCalls } from '../../hooks/useActiveCalls';
@@ -536,53 +536,22 @@ function CallsTable({ calls, callType, onEnd, onTransfer, onTakeover, onShowTran
 // ---------------------------------------------------------------
 
 export default function ActiveCallsPage() {
-  // Initialization -> ActiveCallsPage()-> Main orchestrator for team-wide call orchestration and audit
-  const { activeCalls, callHistory, loading, error, refresh, handleTransfer, handleEndCall, handleTakeover, wsConnected } = useActiveCalls();
-  const [search, setSearch] = useState('');
-  const [deletedIds, setDeletedIds] = useState(new Set());
+  const { activeCalls, loading, error, refresh, handleTransfer, handleEndCall, handleTakeover, wsConnected } = useActiveCalls();
   const [transcriptCall, setTranscriptCall] = useState(null);
   const [activeTab, setActiveTab] = useState('browser');
 
   const phoneCalls = useMemo(() =>
-    // Logic Branch -> phoneCalls extraction: Isolates PSTN sessions for dedicated view
-    activeCalls.filter(c =>
-      c.call_type === 'phone' || isPhoneNumber(c.caller_number)
-    ),
+    activeCalls.filter(c => c.call_type === 'phone' || isPhoneNumber(c.caller_number)),
     [activeCalls]
   );
 
   const browserCalls = useMemo(() =>
-    // Logic Branch -> browserCalls extraction: Isolates WebRTC sessions for dedicated view
-    activeCalls.filter(c =>
-      c.call_type === 'browser' ||
-      (c.call_type !== 'phone' && !isPhoneNumber(c.caller_number))
-    ),
+    activeCalls.filter(c => c.call_type === 'browser' || (c.call_type !== 'phone' && !isPhoneNumber(c.caller_number))),
     [activeCalls]
   );
 
-  const handleDelete = useCallback(async (id) => {
-    // Action Trigger -> handleDelete()-> Executes deletion signal for terminal audit logs
-    setDeletedIds(prev => new Set([...prev, id]));
-    try {
-      await fetch(`${IVR_API}/calls/${id}`, { method: 'DELETE' });
-    } catch (_) {
-      setDeletedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
-    }
-  }, []);
-
   const handleShowTranscript = useCallback((call) => setTranscriptCall(call), []);
   const handleCloseTranscript = useCallback(() => setTranscriptCall(null), []);
-
-  const filtered = useMemo(() =>
-    // Logic Branch -> filtered history: Computes visible audit logs based on search query
-    callHistory.filter(c =>
-      !deletedIds.has(c.id) && (!search ||
-        c.caller_number?.toLowerCase().includes(search.toLowerCase()) ||
-        c.agent_name?.toLowerCase().includes(search.toLowerCase()) ||
-        c.department?.toLowerCase().includes(search.toLowerCase()))
-    ),
-    [callHistory, deletedIds, search]
-  );
 
   const displayCalls = activeTab === 'browser' ? browserCalls : phoneCalls;
 
@@ -662,43 +631,6 @@ export default function ActiveCallsPage() {
           emptyTitle={activeTab === 'phone' ? 'No active phone calls' : 'No active browser calls'}
           emptySubtitle={activeTab === 'phone' ? 'Requires PSTN provider (Exotel/Twilio) integration' : 'Use the "Start Call" button to initiate a WebRTC call'}
         />
-      </section>
-
-      <section>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={13} color="#5a7a9a" />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: '#e8f0f8' }}>Call History</span>
-            <span style={{ fontSize: '11px', color: '#5a7a9a' }}>({filtered.length})</span>
-          </div>
-          <div style={{ position: 'relative' }}>
-            <Search size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#5a7a9a' }} />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', padding: '6px 10px 6px 28px', color: '#e8f0f8', fontSize: '11px', outline: 'none', width: '160px' }} />
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '32px', textAlign: 'center' }}>
-            <Clock size={20} color="#3a4a5a" />
-            <p style={{ fontSize: '12px', color: '#5a7a9a' }}>No call history yet</p>
-          </div>
-        ) : (
-          <div style={TABLE_WRAPPER}>
-            <table style={{ width: '100%', minWidth: '900px', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-                  {COL_HEADS.map(h => <th key={h} style={TH_STYLE}>{h}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(call => (
-                  <HistoryRow key={call.id} call={call} onDelete={handleDelete} onShowTranscript={handleShowTranscript} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </section>
 
       {transcriptCall && (
