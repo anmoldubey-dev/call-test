@@ -75,6 +75,8 @@ export default function LiveCallPanel({ onNewCallerText }) {
   const [inviteDialing, setInviteDialing] = useState(false);
   const [inviteError, setInviteError] = useState('');
   const [invitedList, setInvitedList] = useState([]);
+  const [joinLink, setJoinLink] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // ---------------------------------------------------------------
   // SECTION: MEDIA & SIGNALING REFS
@@ -566,21 +568,45 @@ export default function LiveCallPanel({ onNewCallerText }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: '#e8f0f8' }}>Add to Call</span>
-                <button onClick={() => setShowInviteModal(false)} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+                <button onClick={() => { setShowInviteModal(false); setJoinLink(''); setInviteeId(''); setInvitedList([]); }} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: '18px' }}>✕</button>
               </div>
 
-              <label style={{ fontSize: '10px', color: '#5a7a9a', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent Email / Identity</label>
+              <label style={{ fontSize: '10px', color: '#5a7a9a', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Email or Name</label>
               <input
                 type="text"
-                placeholder="agent@company.com"
+                placeholder="anyone@example.com or Any Name"
                 value={inviteeId}
-                onChange={e => { setInviteeId(e.target.value); setInviteError(''); }}
+                onChange={e => { setInviteeId(e.target.value); setInviteError(''); setJoinLink(''); }}
                 style={{ width: '100%', background: '#080c10', border: '1px solid #1e2d3d', borderRadius: '8px', padding: '8px 10px', color: '#e2e8f0', fontSize: '12px', marginBottom: '14px', outline: 'none', boxSizing: 'border-box' }}
               />
 
               {invitedList.length > 0 && (
-                <div style={{ marginBottom: '12px' }}>
-                  {invitedList.map((p, i) => <div key={i} style={{ fontSize: '11px', color: '#4ade80', padding: '3px 0' }}>✓ {p}</div>)}
+                <div style={{ marginBottom: '10px' }}>
+                  {invitedList.map((p, i) => <div key={i} style={{ fontSize: '11px', color: '#4ade80', padding: '2px 0' }}>✓ {p}</div>)}
+                </div>
+              )}
+
+              {/* Join link — shown after invite is sent */}
+              {joinLink && (
+                <div style={{ marginBottom: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', padding: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#818cf8', marginBottom: '6px', fontWeight: 600 }}>📎 Share this link with them:</div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <div style={{ flex: 1, fontSize: '10px', color: '#c4cdd8', wordBreak: 'break-all', background: '#080c10', borderRadius: '6px', padding: '6px 8px', border: '1px solid #1e2d3d' }}>
+                      {joinLink}
+                    </div>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(joinLink).then(() => {
+                          setLinkCopied(true);
+                          setTimeout(() => setLinkCopied(false), 2500);
+                        });
+                      }}
+                      style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.2)', color: linkCopied ? '#4ade80' : '#818cf8', border: 'none', whiteSpace: 'nowrap' }}
+                    >
+                      {linkCopied ? '✓ Copied' : 'Copy'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#5a7a9a', marginTop: '6px' }}>Anyone who opens this link can join the call directly — no login needed.</div>
                 </div>
               )}
 
@@ -593,8 +619,8 @@ export default function LiveCallPanel({ onNewCallerText }) {
               <button
                 disabled={inviteDialing}
                 onClick={async () => {
-                  if (!inviteeId.trim()) { setInviteError('Enter an agent email or identity'); return; }
-                  setInviteDialing(true); setInviteError('');
+                  if (!inviteeId.trim()) { setInviteError('Enter an email or name'); return; }
+                  setInviteDialing(true); setInviteError(''); setJoinLink('');
                   const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}'); } catch { return {}; } })();
                   const inviterName = stored.name || 'Agent';
                   try {
@@ -603,8 +629,13 @@ export default function LiveCallPanel({ onNewCallerText }) {
                       body: JSON.stringify({ room_name: ROOM_LABEL, invitee_id: inviteeId.trim(), inviter_name: inviterName, call_id: backendCallId || '' }),
                     });
                     if (res.ok) {
+                      const data = await res.json();
                       setInvitedList(prev => [...prev, inviteeId.trim()]);
                       setTranscript(prev => [...prev, { speaker: 'system', text: `${inviteeId.trim()} invited to join` }]);
+                      // Build the shareable join link
+                      const baseUrl = window.location.origin;
+                      const link = `${baseUrl}/conference/${encodeURIComponent(ROOM_LABEL)}/join`;
+                      setJoinLink(link);
                       setInviteeId('');
                     } else {
                       const d = await res.json().catch(() => ({}));
@@ -621,7 +652,7 @@ export default function LiveCallPanel({ onNewCallerText }) {
                   border: '1px solid rgba(34,197,94,0.30)',
                 }}
               >
-                {inviteDialing ? 'Sending…' : '📨 Send Invite'}
+                {inviteDialing ? 'Generating link…' : '📨 Generate Join Link'}
               </button>
             </div>
           </div>

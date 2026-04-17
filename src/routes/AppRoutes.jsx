@@ -75,6 +75,7 @@ import WebWidgetPage      from '../pages/user/WebWidgetPage.jsx'
 import CallLogsPage       from '../pages/user/CallLogsPage.jsx'
 import BroadcastListener  from '../pages/user/BroadcastListener.jsx'
 import AiAgentsPage       from '../pages/user/AiAgentsPage.jsx'
+import ConferenceJoin     from '../pages/ConferenceJoin.jsx'
 
 // Admin pages
 import AdminPage      from '../pages/AdminPage.jsx'
@@ -148,6 +149,9 @@ const AppRoutes = () => {
 
       {/* ── Broadcast Listener (public) ── */}
       <Route path="/broadcast/:id/listen" element={<BroadcastListener />} />
+
+      {/* ── Conference Join (public — anyone with the link can join) ── */}
+      <Route path="/conference/:roomName/join" element={<ConferenceJoin />} />
 
       {/* ── Admin routes -> Specific before wildcard (role: admin) ── */}
       <Route
