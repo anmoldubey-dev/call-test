@@ -78,9 +78,8 @@ function TranscriptModal({ callId, callerNumber, onClose }) {
     const fetchTranscript = async () => {
       try {
         const endpoint = api.defaults?.baseURL?.endsWith('/api') ? `/calls/${callId}/transcript` : `/api/calls/${callId}/transcript`;
-        const response = await api.get(endpoint);
-        const data = response.data || response;
-        setItems(Array.isArray(data) ? data : data.items || []);
+        const data = await api.get(endpoint);
+        setItems(Array.isArray(data) ? data : (data?.items || []));
       } catch (e) {
         setItems([]);
       }
@@ -243,7 +242,7 @@ export default function HistoryPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                {['Caller', 'Department', 'Duration', 'Status', 'Date', ''].map(h => (
+                {['Caller', 'Agent', 'Department', 'Duration', 'Status', 'Sentiment', 'Start', 'End', ''].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: '9px', color: '#5a7a9a', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'left', fontWeight: 500 }}>{h}</th>
                 ))}
               </tr>
@@ -252,13 +251,25 @@ export default function HistoryPanel() {
               {filtered.map(c => (
                 <tr key={c.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   <td style={{ padding: '10px 14px' }}>
-                    <div style={{ fontSize: '11px', color: '#e8f0f8', fontWeight: 500 }}>{c.caller_number}</div>
-                    <div style={{ fontSize: '10px', color: '#5a7a9a' }}>{c.agent_name || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#e8f0f8', fontWeight: 500 }}>{c.caller_number || c.caller_name || '—'}</div>
+                    {c.caller_name && c.caller_number && <div style={{ fontSize: '10px', color: '#5a7a9a' }}>{c.caller_name}</div>}
                   </td>
+                  <td style={{ padding: '10px 14px', fontSize: '11px', color: '#8899aa' }}>{c.agent_name || '—'}</td>
                   <td style={{ padding: '10px 14px', fontSize: '11px', color: '#8899aa' }}>{c.department || '—'}</td>
                   <td style={{ padding: '10px 14px', fontSize: '11px', color: '#8899aa', fontFamily: 'monospace' }}>{formatDuration(c.duration_seconds)}</td>
                   <td style={{ padding: '10px 14px' }}><StatusBadge status={c.status} /></td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {c.sentiment ? (
+                      <span style={{
+                        fontSize: '10px', padding: '2px 7px', borderRadius: '3px',
+                        background: c.sentiment === 'positive' ? 'rgba(34,197,94,0.12)' : c.sentiment === 'negative' ? 'rgba(239,68,68,0.12)' : 'rgba(100,100,100,0.12)',
+                        color: c.sentiment === 'positive' ? '#22c55e' : c.sentiment === 'negative' ? '#f87171' : '#8899aa',
+                        textTransform: 'capitalize',
+                      }}>{c.sentiment}</span>
+                    ) : <span style={{ fontSize: '10px', color: '#5a7a9a' }}>—</span>}
+                  </td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{formatDate(c.created_at)}</td>
+                  <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{c.ended_at ? formatDate(c.ended_at) : '—'}</td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setTranscript(c)} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '6px', padding: '3px 9px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>

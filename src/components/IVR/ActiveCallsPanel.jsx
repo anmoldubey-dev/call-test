@@ -157,7 +157,7 @@ function RecordingPlayer({ callId, hasRecording }) {
     // Internal Call -> toggle()-> Executes play/pause on the native Audio buffer
     if (!hasRecording) return;
     if (!audioRef.current) {
-      const a = new Audio(`${IV_API}/calls/${callId}/recording`);
+      const a = new Audio(`${IVR_API}/calls/${callId}/recording`);
       a.onended = () => setPlaying(false);
       audioRef.current = a;
     }
@@ -193,7 +193,7 @@ function TranscriptModal({ callId, callerNumber, onClose }) {
 
   useEffect(() => {
     // Sub-process -> useEffect()-> Executes asynchronous retrieval of historical dialogue items
-    fetch(`${IV_API}/calls/${callId}/transcript`)
+    fetch(`${IVR_API}/calls/${callId}/transcript`)
       .then(res => { if (!res.ok) throw new Error(); return res.json(); })
       .then(data => setItems(Array.isArray(data) ? data : data.items || []))
       .catch(() => setItems([]))
@@ -218,7 +218,7 @@ function TranscriptModal({ callId, callerNumber, onClose }) {
     if (!text || sending) return;
     setSending(true);
     try {
-      const res = await fetch(`${IV_API}/calls/${callId}/transcript`, {
+      const res = await fetch(`${IVR_API}/calls/${callId}/transcript`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ speaker, text }),
       });
@@ -564,7 +564,7 @@ export default function ActiveCallsPage() {
     // Action Trigger -> handleDelete()-> Executes deletion signal for terminal audit logs
     setDeletedIds(prev => new Set([...prev, id]));
     try {
-      await fetch(`${IV_API}/calls/${id}`, { method: 'DELETE' });
+      await fetch(`${IVR_API}/calls/${id}`, { method: 'DELETE' });
     } catch (_) {
       setDeletedIds(prev => { const s = new Set(prev); s.delete(id); return s; });
     }
