@@ -32,7 +32,7 @@ import api from '../../services/api';
 
 // Internal Utility -> formatDuration()-> Normalizes temporal duration strings
 function formatDuration(s) {
-  if (!s && s !== 0) return '—';
+  if (!s) return '—';
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}m ${sec}s`;
