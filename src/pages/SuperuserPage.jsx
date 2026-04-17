@@ -1,6 +1,6 @@
 // ======================== Superuser Overview Page ========================
 import GlobalStyles from "../components/dashboard/GlobalStyles";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ✅ CORRECTED IMPORTS
@@ -8,11 +8,18 @@ import ActiveCallsPanel from "../components/IVR/ActiveCallsPanel";
 import HistoryPanel from "../components/IVR/HistoryPanel";
 import BroadcastPanel from "../components/IVR/BroadcastPanel";
 import QueueWaitTimesPanel from "../components/superuser/QueueWaitTimesPanel";
+import LiveCallConsole from "../components/LiveConsole/LiveCallConsole";
+import { useCall } from "../context/CallContext";
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function SuperuserPage() {
   const navigate = useNavigate();
-  
+
   const [activeView, setActiveView] = useState("overview");
+  const [confInvite, setConfInvite] = useState(null);
+
+  const { setLivekitSession, startCall, livekitSession } = useCall();
 
   const handleLogout = () => {
     sessionStorage.removeItem("token");
@@ -20,9 +27,88 @@ export default function SuperuserPage() {
     navigate("/login");
   };
 
+  // Listen for conference_invite events from the event hub
+  useEffect(() => {
+    const stored = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}"); } catch { return {}; } })();
+    const myIdentity = stored.email || "";
+    if (!myIdentity) return;
+
+    const WS_BASE = import.meta.env.VITE_WS_URL || 'wss://anteriorly-digestional-laquita.ngrok-free.dev';
+    let ws;
+    let isMounted = true;
+    let reconnectTimer = null;
+
+    const connect = () => {
+      if (!isMounted) return;
+      ws = new WebSocket(`${WS_BASE}/api/ws/events`);
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data);
+          if (
+            msg.type === "conference_invite" &&
+            msg.data?.room_name &&
+            (msg.assigned_agent === myIdentity || !msg.assigned_agent)
+          ) {
+            setConfInvite(msg.data);
+          }
+        } catch { /* ignore malformed frames */ }
+      };
+      ws.onclose = () => { if (isMounted) reconnectTimer = setTimeout(connect, 3000); };
+    };
+
+    connect();
+    return () => {
+      isMounted = false;
+      clearTimeout(reconnectTimer);
+      if (ws) { ws.onclose = null; ws.close(); }
+    };
+  }, []);
+
   return (
     <>
       <GlobalStyles />
+
+      {/* Conference invite popup */}
+      {confInvite && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(5px)" }}>
+          <div style={{ background: "#0e1419", border: "1px solid rgba(34,197,94,0.35)", borderRadius: 20, padding: "30px", width: 340, textAlign: "center", boxShadow: "0 0 40px rgba(34,197,94,0.15)" }}>
+            <div style={{ width: 70, height: 70, borderRadius: "50%", background: "rgba(34,197,94,0.1)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px auto", fontSize: 28, position: "relative" }}>
+              <div style={{ position: "absolute", width: "100%", height: "100%", borderRadius: "50%", border: "2px solid #22c55e", animation: "ping 1.5s cubic-bezier(0,0,0.2,1) infinite" }} />
+              🎙
+            </div>
+            <h2 style={{ color: "#fff", fontSize: 18, fontWeight: 800, margin: "0 0 6px 0" }}>Conference Invite</h2>
+            <p style={{ color: "#4ade80", fontSize: 13, margin: "0 0 6px 0", fontWeight: 600 }}>{confInvite.inviter_name || "An agent"}</p>
+            <p style={{ color: "#5a7a9a", fontSize: 12, margin: "0 0 22px 0" }}>is inviting you to join an active call</p>
+            <div style={{ display: "flex", gap: 14, justifyContent: "center" }}>
+              <button onClick={() => setConfInvite(null)} style={{ flex: 1, padding: 11, borderRadius: 10, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#ef4444", cursor: "pointer", fontSize: 13 }}>Decline</button>
+              <button
+                onClick={async () => {
+                  const stored = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}"); } catch { return {}; } })();
+                  const agentId = stored.email || stored.id || "superuser";
+                  const roomName = confInvite.room_name;
+                  setConfInvite(null);
+                  try {
+                    const res = await fetch(`${API_BASE}/api/webrtc/livekit/token?room=${roomName}&identity=${encodeURIComponent(agentId)}&name=${encodeURIComponent(stored.name || "Superuser")}`);
+                    const tokenData = await res.json();
+                    if (!tokenData.token) throw new Error("No token");
+                    setLivekitSession({
+                      url: tokenData.livekit_url || import.meta.env.VITE_LIVEKIT_URL || "wss://voice-ai-nv6qlh0d.livekit.cloud",
+                      token: tokenData.token,
+                      room: roomName,
+                    });
+                    setActiveView("live_console");
+                    startCall();
+                  } catch (e) {
+                    console.error("Conference join failed:", e);
+                  }
+                }}
+                style={{ flex: 1, padding: 11, borderRadius: 10, background: "linear-gradient(135deg,#22c55e,#16a34a)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 700 }}
+              >Join Call</button>
+            </div>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes ping { 75%, 100% { transform: scale(1.5); opacity: 0; } }`}</style>
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg)" }}>
 
         {/* ── Sidebar ─────────────────────────────────────────────── */}
@@ -242,17 +328,9 @@ export default function SuperuserPage() {
             </div>
           )}
 
-          {/* ✅ NAYA: Live Console Rendering Block */}
           {activeView === "live_console" && (
-            <div style={{ background: "var(--bg2)", borderRadius: '16px', padding: '30px', border: '1px solid var(--bdr)' }}>
-               <h2 style={{ fontSize: '20px', fontWeight: 'bold', color: '#e8f0f8', marginBottom: '8px' }}>🖥️ Agent Live Console</h2>
-               <p style={{ color: '#5a7a9a', fontSize: '13px', marginBottom: '24px' }}>
-                 When you takeover a call, the live WebRTC audio and real-time transcripts will load here.
-               </p>
-               <div style={{ border: '1px dashed var(--bdr2)', borderRadius: '12px', padding: '40px', textAlign: 'center', color: '#5a7a9a' }}>
-                 Ready for incoming takeover sessions...
-               </div>
-               {/* Note: Hum yahan par tumhara actual AgentConsole component mount karenge jab tumhe uski UI set karni hogi */}
+            <div style={{ background: "var(--bg2)", borderRadius: '16px', border: '1px solid var(--bdr)', height: 'calc(100vh - 180px)', overflow: 'hidden' }}>
+              <LiveCallConsole />
             </div>
           )}
 
