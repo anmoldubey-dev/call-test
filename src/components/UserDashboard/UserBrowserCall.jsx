@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useRemoteParticipants, useDataChannel, useRoomContext } from '@livekit/components-react';
-import { Phone, PhoneOff, Loader2, UserCheck, Mic } from 'lucide-react';
+import { Phone, PhoneOff, Loader2, UserCheck, Mic, MicOff } from 'lucide-react';
 import { DEPARTMENTS } from '../../constants/departments.js';
 
 // ======================== User Browser Call Orchestrator ========================
@@ -77,6 +77,35 @@ function CallStatusWatcher({ onAgentJoined, onAgentLeft }) {
         }
     }, [remoteParticipants, onAgentJoined, onAgentLeft]);
     return null;
+}
+
+function MuteButton() {
+    const room = useRoomContext();
+    const [muted, setMuted] = useState(false);
+
+    const toggle = async () => {
+        const next = !muted;
+        try {
+            await room.localParticipant.setMicrophoneEnabled(!next);
+        } catch (e) { console.warn('[Mute] toggle failed:', e); }
+        setMuted(next);
+    };
+
+    return (
+        <button
+            onClick={toggle}
+            style={{
+                padding: '9px 18px', borderRadius: 8, border: muted ? '1px solid rgba(239,68,68,0.4)' : '1px solid rgba(255,255,255,0.12)',
+                background: muted ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.05)',
+                color: muted ? '#f87171' : '#94a3b8',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 13, fontWeight: 600, transition: 'all 0.2s',
+            }}
+        >
+            {muted ? <MicOff size={15} /> : <Mic size={15} />}
+            {muted ? 'Unmute' : 'Mute'}
+        </button>
+    );
 }
 
 // ---------------------------------------------------------------
@@ -381,10 +410,13 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                                 <p style={{ fontSize: 13, color: '#94a3b8', margin: 0 }}>Speak now, they can hear you!</p>
                             </>
                         )}
-                        <button onClick={handleEndCall}
-                            style={{ padding: '10px 20px', background: '#ef4444', color: 'white', borderRadius: 8, border: 'none', marginTop: 15, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
-                            <PhoneOff size={16} /> End Call
-                        </button>
+                        <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
+                            <MuteButton />
+                            <button onClick={handleEndCall}
+                                style={{ padding: '10px 20px', background: '#ef4444', color: 'white', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                                <PhoneOff size={16} /> End Call
+                            </button>
+                        </div>
                     </div>
                 </LiveKitRoom>
                 <style>{`@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.4); } 70% { box-shadow: 0 0 0 10px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }`}</style>
