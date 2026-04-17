@@ -71,10 +71,6 @@ export default function LiveCallPanel({ onNewCallerText }) {
   const [transferDone, setTransferDone] = useState(null);
 
   const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteeId, setInviteeId] = useState('');
-  const [inviteDialing, setInviteDialing] = useState(false);
-  const [inviteError, setInviteError] = useState('');
-  const [invitedList, setInvitedList] = useState([]);
   const [joinLink, setJoinLink] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -564,96 +560,52 @@ export default function LiveCallPanel({ onNewCallerText }) {
 
         {showInviteModal && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: '#0e1419', border: '1px solid #1e2d3d', borderRadius: '14px', padding: '24px', width: '320px' }}>
+            <div style={{ background: '#0e1419', border: '1px solid #1e2d3d', borderRadius: '14px', padding: '24px', width: '340px' }}>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 600, color: '#e8f0f8' }}>Add to Call</span>
-                <button onClick={() => { setShowInviteModal(false); setJoinLink(''); setInviteeId(''); setInvitedList([]); }} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+                <button onClick={() => { setShowInviteModal(false); setJoinLink(''); setLinkCopied(false); }} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: '18px' }}>✕</button>
               </div>
 
-              <label style={{ fontSize: '10px', color: '#5a7a9a', display: 'block', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Email or Name</label>
-              <input
-                type="text"
-                placeholder="anyone@example.com or Any Name"
-                value={inviteeId}
-                onChange={e => { setInviteeId(e.target.value); setInviteError(''); setJoinLink(''); }}
-                style={{ width: '100%', background: '#080c10', border: '1px solid #1e2d3d', borderRadius: '8px', padding: '8px 10px', color: '#e2e8f0', fontSize: '12px', marginBottom: '14px', outline: 'none', boxSizing: 'border-box' }}
-              />
-
-              {invitedList.length > 0 && (
-                <div style={{ marginBottom: '10px' }}>
-                  {invitedList.map((p, i) => <div key={i} style={{ fontSize: '11px', color: '#4ade80', padding: '2px 0' }}>✓ {p}</div>)}
-                </div>
-              )}
-
-              {/* Join link — shown after invite is sent */}
-              {joinLink && (
-                <div style={{ marginBottom: '12px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', padding: '10px' }}>
-                  <div style={{ fontSize: '10px', color: '#818cf8', marginBottom: '6px', fontWeight: 600 }}>📎 Share this link with them:</div>
-                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                    <div style={{ flex: 1, fontSize: '10px', color: '#c4cdd8', wordBreak: 'break-all', background: '#080c10', borderRadius: '6px', padding: '6px 8px', border: '1px solid #1e2d3d' }}>
+              {!joinLink ? (
+                <>
+                  <p style={{ fontSize: '12px', color: '#5a7a9a', marginBottom: '18px' }}>
+                    Generate a link and send it to anyone — they can join the call directly, no login required.
+                  </p>
+                  <button
+                    onClick={() => {
+                      const link = `${window.location.origin}/conference/${encodeURIComponent(ROOM_LABEL)}/join`;
+                      setJoinLink(link);
+                    }}
+                    style={{ width: '100%', padding: '11px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', background: 'rgba(34,197,94,0.15)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.30)' }}
+                  >
+                    🔗 Generate Join Link
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: '8px', padding: '12px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '10px', color: '#818cf8', marginBottom: '8px', fontWeight: 600 }}>📎 Share this link:</div>
+                    <div style={{ fontSize: '11px', color: '#c4cdd8', wordBreak: 'break-all', background: '#080c10', borderRadius: '6px', padding: '8px 10px', border: '1px solid #1e2d3d', marginBottom: '10px', lineHeight: 1.6 }}>
                       {joinLink}
                     </div>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(joinLink).then(() => {
                           setLinkCopied(true);
-                          setTimeout(() => setLinkCopied(false), 2500);
+                          setTimeout(() => setLinkCopied(false), 3000);
                         });
                       }}
-                      style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', background: linkCopied ? 'rgba(34,197,94,0.15)' : 'rgba(99,102,241,0.2)', color: linkCopied ? '#4ade80' : '#818cf8', border: 'none', whiteSpace: 'nowrap' }}
+                      style={{ width: '100%', padding: '9px', borderRadius: '7px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', background: linkCopied ? 'rgba(34,197,94,0.18)' : '#6366f1', color: linkCopied ? '#4ade80' : '#fff', border: 'none', transition: 'all 0.2s' }}
                     >
-                      {linkCopied ? '✓ Copied' : 'Copy'}
+                      {linkCopied ? '✓ Copied to clipboard!' : 'Copy Link'}
                     </button>
                   </div>
-                  <div style={{ fontSize: '10px', color: '#5a7a9a', marginTop: '6px' }}>Anyone who opens this link can join the call directly — no login needed.</div>
-                </div>
+                  <p style={{ fontSize: '11px', color: '#5a7a9a', textAlign: 'center', margin: 0 }}>
+                    Anyone who opens this link can join the call.
+                  </p>
+                </>
               )}
-
-              {inviteError && (
-                <div style={{ padding: '7px 10px', borderRadius: '7px', fontSize: '11px', marginBottom: '10px', background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.2)' }}>
-                  {inviteError}
-                </div>
-              )}
-
-              <button
-                disabled={inviteDialing}
-                onClick={async () => {
-                  if (!inviteeId.trim()) { setInviteError('Enter an email or name'); return; }
-                  setInviteDialing(true); setInviteError(''); setJoinLink('');
-                  const stored = (() => { try { return JSON.parse(sessionStorage.getItem('user') || '{}'); } catch { return {}; } })();
-                  const inviterName = stored.name || 'Agent';
-                  try {
-                    const res = await fetch(`${API_BASE}/webrtc/conference/invite`, {
-                      method: 'POST', headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ room_name: ROOM_LABEL, invitee_id: inviteeId.trim(), inviter_name: inviterName, call_id: backendCallId || '' }),
-                    });
-                    if (res.ok) {
-                      const data = await res.json();
-                      setInvitedList(prev => [...prev, inviteeId.trim()]);
-                      setTranscript(prev => [...prev, { speaker: 'system', text: `${inviteeId.trim()} invited to join` }]);
-                      // Build the shareable join link
-                      const baseUrl = window.location.origin;
-                      const link = `${baseUrl}/conference/${encodeURIComponent(ROOM_LABEL)}/join`;
-                      setJoinLink(link);
-                      setInviteeId('');
-                    } else {
-                      const d = await res.json().catch(() => ({}));
-                      setInviteError(d.detail || 'Could not send invite');
-                    }
-                  } catch { setInviteError('Network error — invite may not have been delivered'); }
-                  finally { setInviteDialing(false); }
-                }}
-                style={{
-                  width: '100%', padding: '9px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
-                  cursor: inviteDialing ? 'not-allowed' : 'pointer',
-                  background: inviteDialing ? 'rgba(255,255,255,0.04)' : 'rgba(34,197,94,0.15)',
-                  color: inviteDialing ? '#5a7a9a' : '#4ade80',
-                  border: '1px solid rgba(34,197,94,0.30)',
-                }}
-              >
-                {inviteDialing ? 'Generating link…' : '📨 Generate Join Link'}
-              </button>
             </div>
           </div>
         )}
