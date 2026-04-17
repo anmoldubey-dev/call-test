@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/api\/?$/, '');
 import { statusColor, sentimentColor, fmtDur, fmtDate } from "../../utils/agentHelpers";
 
 // ======================== Call Table Orchestrator ========================
@@ -35,7 +37,23 @@ const td = { padding: "9px 10px", color: "var(--txt)", whiteSpace: "nowrap" };
 // ---------------------------------------------------------------
 
 function CallModal({ call, onClose }) {
-  // Initialization -> CallModal()-> Reactive sub-component for deep-dive session exploration
+  const [dbTranscript, setDbTranscript] = useState(null);
+
+  useEffect(() => {
+    if (!call) return;
+    const callId = call.id || call.callId;
+    if (!callId) return;
+    setDbTranscript(null);
+    fetch(`${API_BASE}/api/calls/${callId}/transcript`)
+      .then(r => r.json())
+      .then(rows => {
+        if (rows && rows.length > 0) {
+          setDbTranscript(rows.map(r => `[${r.speaker}]: ${r.text}`).join('\n'));
+        }
+      })
+      .catch(() => {});
+  }, [call]);
+
   if (!call) return null;
   return (
     <div
@@ -120,8 +138,8 @@ function CallModal({ call, onClose }) {
             <p style={{ fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
               📄 Transcript
             </p>
-            {call.transcript
-              ? <pre style={{ fontSize: 12, color: "var(--txt)", whiteSpace: "pre-wrap", lineHeight: 1.6, margin: 0 }}>{call.transcript}</pre>
+            {(dbTranscript || call.transcript)
+              ? <pre style={{ fontSize: 12, color: "var(--txt)", whiteSpace: "pre-wrap", lineHeight: 1.6, margin: 0 }}>{dbTranscript || call.transcript}</pre>
               : <p style={{ fontSize: 12, color: "var(--txt2)", margin: 0 }}>No transcript available.</p>
             }
           </div>
