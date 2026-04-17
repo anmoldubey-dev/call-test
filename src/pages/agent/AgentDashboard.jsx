@@ -277,16 +277,12 @@ export default function AgentDashboard() {
       case "overview":     return <OverviewTab   stats={stats}   calls={calls}   chartsReady={chartsReady} />;
       case "analytics":    return <AnalyticsTab  stats={stats}   chartsReady={chartsReady} />;
       case "settings":     return <SettingsTab   profile={profile} />;
-      case "live-console": return <LiveCallConsole />;
-      
       case "broadcast":    return <BroadcastPanel />;
       case "active-calls": return <ActiveCallsPanel />;
       case "ivr-builder":  return <IVRBuilderPanel />;
       case "calls":        return <HistoryPanel />;
       case "queue-monitor": return <QueueMonitor />;
-      // 🟢 SAFE PLACEHOLDER FOR DIALER
       case "phone-call":   return <div style={{padding: 40, color: '#94a3b8', textAlign: 'center', fontSize: '18px', fontWeight: 'bold'}}>📞 Phone Dialer UI Coming Soon...</div>;
-
       default:             return <OverviewTab   stats={stats}   calls={calls}   chartsReady={chartsReady} />;
     }
   };
@@ -410,7 +406,11 @@ export default function AgentDashboard() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
           <Header activeTab={activeTab} profile={profile} csatData={csatData} dateRange={dateRange} setDateRange={setDateRange} channel={channel} setChannel={setChannel} stats={stats} fmtDur={fmtDur} />
           <main style={{ flex: 1, overflowY: "auto", padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-             {renderTab()}
+            {/* LiveCallConsole stays mounted always so the WebRTC connection survives tab switches */}
+            <div style={{ display: activeTab === "live-console" ? "contents" : "none" }}>
+              <LiveCallConsole />
+            </div>
+            {activeTab !== "live-console" && renderTab()}
           </main>
         </div>
       </div>
