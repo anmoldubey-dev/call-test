@@ -38,23 +38,28 @@ function formatDuration(s) {
   return `${m}m ${sec}s`;
 }
 
-// Internal Utility -> formatDate()-> Serializes ISO timestamps for localized display
+function _toDate(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function formatDate(iso) {
-  if (!iso) return '—';
-  const utc = iso.endsWith('Z') ? iso : iso + 'Z';
-  return new Date(utc).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const d = _toDate(iso);
+  if (!d) return '—';
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function formatDateOnly(iso) {
-  if (!iso) return '—';
-  const utc = iso.endsWith('Z') ? iso : iso + 'Z';
-  return new Date(utc).toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+  const d = _toDate(iso);
+  if (!d) return '—';
+  return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 function formatTimeOnly(iso) {
-  if (!iso) return '—';
-  const utc = iso.endsWith('Z') ? iso : iso + 'Z';
-  return new Date(utc).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const d = _toDate(iso);
+  if (!d) return '—';
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 // ---------------------------------------------------------------
