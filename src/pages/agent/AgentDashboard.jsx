@@ -102,7 +102,7 @@ export default function AgentDashboard() {
   const [confInvite, setConfInvite] = useState(null); // { room_name, inviter_name }
 
   // 🟢 LOGIC: Decide when to pause dashboard auto-refresh
-  const isPaused = ["live-console", "broadcast", "active-calls", "phone-call"].includes(activeTab);
+  const isPaused = ["live-console", "broadcast", "phone-call"].includes(activeTab);
 
   const {
     token, profile, stats, calls, csatData,

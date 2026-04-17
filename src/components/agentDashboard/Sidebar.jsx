@@ -47,7 +47,6 @@ const SECTIONS = [
   {
     title: "MONITOR",
     items: [
-      { id: "active-calls", icon: <Activity size={16} />, label: "Active Calls" },
       { id: "ivr-builder", icon: <GitBranch size={16} />, label: "IVR Builder" },
       { id: "calls", icon: <History size={16} />, label: "History" },
       { id: "queue-monitor", icon: <ListChecks size={16} />, label: "Queue Monitor" },
