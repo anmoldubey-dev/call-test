@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// VITE_API_URL already includes /api (e.g. https://xyz.ngrok.io/api)
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+// Same pattern as api.js — empty VITE_API_URL becomes relative /api/...
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') + '/api';
 const POLL_INTERVAL = 4000;
 
 export function useActiveCalls() {
