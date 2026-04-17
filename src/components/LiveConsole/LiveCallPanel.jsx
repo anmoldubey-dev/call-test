@@ -42,6 +42,17 @@ const API_BASE = ((import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, ''))
 
 const DEPARTMENTS = ['General', 'Sales', 'Support', 'Billing', 'Technical'];
 
+async function _saveTranscript(sessionId, speaker, text) {
+  if (!sessionId || !text?.trim()) return;
+  try {
+    await fetch(`${API_BASE}/webrtc/transcript/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, speaker, text }),
+    });
+  } catch (_) { /* non-fatal */ }
+}
+
 // ---------------------------------------------------------------
 // SECTION: MAIN COMPONENT DEFINITION
 // ---------------------------------------------------------------
@@ -181,6 +192,7 @@ export default function LiveCallPanel({ onNewCallerText }) {
         if (!text?.trim()) return;
         setTranscript(prev => [...prev, { speaker: 'caller', text: text.trim() }]);
         onNewCallerTextRef.current?.(text.trim());
+        _saveTranscript(livekitSession.room, 'caller', text.trim());
       } catch (_) { }
     });
 
@@ -288,6 +300,7 @@ export default function LiveCallPanel({ onNewCallerText }) {
           if (!isMutedRef.current) {
             setTranscript(prev => [...prev, { speaker: 'agent', text }]);
             onNewCallerTextRef.current?.(text);
+            _saveTranscript(livekitSession?.room, 'agent', text);
           }
         } else {
           setInterimText(text);

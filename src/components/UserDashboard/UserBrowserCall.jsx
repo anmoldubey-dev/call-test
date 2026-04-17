@@ -13,7 +13,20 @@ import { DEPARTMENTS } from '../../constants/departments.js';
 // SECTION: ATOMIC SUB-COMPONENTS (SIGNALING & TRANSCRIPTION)
 // ---------------------------------------------------------------
 
-function CallerTranscriptSender({ enabled }) {
+const _API = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+
+async function _saveTranscript(sessionId, speaker, text) {
+    if (!sessionId || !text?.trim()) return;
+    try {
+        await fetch(`${_API}/api/webrtc/transcript/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, speaker, text }),
+        });
+    } catch (_) { /* non-fatal */ }
+}
+
+function CallerTranscriptSender({ enabled, sessionId }) {
     const room = useRoomContext();
     useEffect(() => {
         if (!enabled || !room) return;
@@ -30,11 +43,12 @@ function CallerTranscriptSender({ enabled }) {
                 const payload = new TextEncoder().encode(JSON.stringify({ text }));
                 room.localParticipant.publishData(payload, { reliable: true, topic: 'transcript' });
             } catch (e) { console.warn('[CallerTranscript] publish failed:', e); }
+            _saveTranscript(sessionId, 'caller', text);
         };
         recognition.onend = () => { try { recognition.start(); } catch (_) { } };
         try { recognition.start(); } catch (_) { }
         return () => { recognition.onend = null; recognition.abort(); };
-    }, [enabled, room]);
+    }, [enabled, room, sessionId]);
     return null;
 }
 
@@ -373,7 +387,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     serverUrl={connectionDetails.wsUrl} connect={true} onDisconnected={handleEndCall}>
                     <RoomAudioRenderer />
                     <QueueTTSReceiver active={callState === "waiting"} />
-                    <CallerTranscriptSender enabled={callState === "active"} />
+                    <CallerTranscriptSender enabled={callState === "active"} sessionId={connectionDetails.room} />
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
