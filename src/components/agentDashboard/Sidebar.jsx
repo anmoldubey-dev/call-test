@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, BarChart3, Settings,
-  Phone, Globe, Radio, Activity, GitBranch, History,
-  LogOut, Terminal, ListChecks
+  Phone, Globe, Radio, GitBranch, History,
+  LogOut, Terminal, ListChecks, Users
 } from "lucide-react";
 
 import { useCall } from "../../context/CallContext";
@@ -50,6 +50,7 @@ const SECTIONS = [
       { id: "ivr-builder", icon: <GitBranch size={16} />, label: "IVR Builder" },
       { id: "calls", icon: <History size={16} />, label: "History" },
       { id: "queue-monitor", icon: <ListChecks size={16} />, label: "Queue Monitor" },
+      { id: "crm", icon: <Users size={16} />, label: "CRM", link: "/agent/crm" },
     ]
   }
 ];
@@ -168,7 +169,7 @@ export default function Sidebar({ activeTab, setActiveTab, profile, token }) {
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => item.link ? navigate(item.link) : setActiveTab(item.id)}
                   style={{
                     width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "10px 12px",
                     borderRadius: "10px", border: "none", cursor: "pointer", fontSize: "13px",

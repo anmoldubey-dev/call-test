@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Phone, Globe, Loader2 } from 'lucide-react';
 
 import { useCall } from '../../context/CallContext';
@@ -61,6 +61,13 @@ export default function LiveCallConsole() {
   const [aiInsight, setAiInsight] = useState(null);
   const aiTimerRef = useRef(null);
 
+  // CRM state — populated when call goes active
+  const [crmData, setCrmData] = useState(null);
+  const [crmLoading, setCrmLoading] = useState(false);
+  const [currentTicket, setCurrentTicket] = useState(null);
+  // Capture the call ID set during handleInitiateCall so useEffect can read it
+  const [localCallId, setLocalCallId] = useState(null);
+
   // ---------------------------------------------------------------
   // SECTION: AI ASSISTANT LOGIC (DEBOUNCED)
   // ---------------------------------------------------------------
@@ -88,6 +95,29 @@ export default function LiveCallConsole() {
   }, []);
 
   const isActive = !!livekitSession?.room;
+
+  // ---------------------------------------------------------------
+  // SECTION: CRM DATA FETCH — fires when call becomes active
+  // ---------------------------------------------------------------
+
+  useEffect(() => {
+    if (!isActive) return;
+    setCrmData(null);
+    setCurrentTicket(null);
+    setCrmLoading(true);
+
+    const callId = localCallId || 'unknown';
+    const base = api.defaults?.baseURL?.endsWith('/api') ? '' : '/api';
+
+    api.get(`${base}/crm/caller-profile/${callId}`)
+      .then(data => { setCrmData(data); setCrmLoading(false); })
+      .catch(() => setCrmLoading(false));
+
+    api.post(`${base}/zoho/desk/tickets`, {
+      subject: `Call – ${new Date().toLocaleDateString()}`,
+      call_session_id: String(callId),
+    }).then(t => setCurrentTicket(t)).catch(() => {});
+  }, [isActive, localCallId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------
   // SECTION: SIGNALING & CONNECTION ENGINE
@@ -135,7 +165,9 @@ export default function LiveCallConsole() {
       console.log("✅ TOKEN FOUND:", validToken.substring(0, 15) + "...");
 
       setDialNumber(targetUser);
-      setBackendCallId(finalData.call_id || `call-${Date.now()}`);
+      const resolvedCallId = finalData.call_id || `call-${Date.now()}`;
+      setBackendCallId(resolvedCallId);
+      setLocalCallId(resolvedCallId);
 
       // Injecting real token into the global CallContext
       setLivekitSession({
@@ -154,7 +186,9 @@ export default function LiveCallConsole() {
       // 🌟 DEMO FALLBACK: Keeps UI alive even if backend fails
       // Logic Branch -> Fallback mode: Triggers demo session for offline UI verification
       setDialNumber(targetUser);
-      setBackendCallId(`offline-${Date.now()}`);
+      const offlineId = `offline-${Date.now()}`;
+      setBackendCallId(offlineId);
+      setLocalCallId(offlineId);
       setLivekitSession({
         token: "demo-token", // This forces LiveCallPanel into demo mode
         room: generatedRoom,
@@ -213,16 +247,34 @@ export default function LiveCallConsole() {
 
       <div className="w-[320px] flex-shrink-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
         <CrmSidebar
-          isLoading={false}
-          customer={{
-            name: targetUser || "Guest Caller",
-            phone: "+91 9876543210",
-            tier: "VIP Customer",
-            business: { total_spent: "14,500", pending: 1, resolved: 4 },
-            history: [
-              { subject: "Service Request", status: "Resolved" },
-              { subject: "Billing Issue", status: "Pending" }
-            ]
+          isLoading={crmLoading}
+          customer={crmData ? {
+            name:    crmData.caller?.name || targetUser || 'Guest Caller',
+            phone:   crmData.caller?.phone || '',
+            email:   crmData.caller?.email || '',
+            tier:    crmData.contact?.segment || 'standard',
+            company: crmData.contact?.company || '',
+            zoho_contact_id: crmData.contact?.zoho_contact_id,
+            business: {
+              total_spent: '—',
+              pending:  crmData.stats?.open_tickets ?? 0,
+              resolved: crmData.stats?.resolved_tickets ?? 0,
+            },
+            history: (crmData.sessions || []).map(s => ({
+              subject:   `${s.department || 'General'} · ${s.created_at ? new Date(s.created_at).toLocaleDateString() : ''}`,
+              status:    ['ended','completed','abandoned'].includes(s.status) ? 'Resolved' : 'Active',
+              duration:  s.call_duration,
+              sentiment: s.sentiment,
+            })),
+            stats:          crmData.stats,
+            current_ticket: currentTicket || crmData.current_ticket,
+          } : {
+            name:     targetUser || 'Guest Caller',
+            phone:    '',
+            email:    '',
+            tier:     'standard',
+            business: { total_spent: '—', pending: 0, resolved: 0 },
+            history:  [],
           }}
         />
         <AiAssistPanel aiInsight={aiInsight} />

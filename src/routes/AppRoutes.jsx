@@ -85,6 +85,7 @@ import AdminSettings  from '../pages/admin/AdminSettings.jsx'
 // Agent pages
 import AgentPage      from '../pages/AgentPage.jsx'
 import AgentDashboard from '../pages/agent/AgentDashboard.jsx'
+import CrmPage        from '../pages/crm/CrmPage.jsx'
 
 // Superuser pages
 import SuperuserPage        from '../pages/SuperuserPage.jsx'
@@ -289,6 +290,24 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute role="agent">
             <AgentDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/agent/crm"
+        element={
+          <ProtectedRoute role="agent">
+            <CrmPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/superuser/crm"
+        element={
+          <ProtectedRoute role="superuser">
+            <CrmPage />
           </ProtectedRoute>
         }
       />
