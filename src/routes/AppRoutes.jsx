@@ -173,6 +173,15 @@ const AppRoutes = () => {
         }
       />
 
+      <Route
+        path="/admin/crm"
+        element={
+          <ProtectedRoute role="admin">
+            <CrmPage />
+          </ProtectedRoute>
+        }
+      />
+
       {/* Wildcard -> Catches all other /admin/* paths */}
       <Route
         path="/admin/*"

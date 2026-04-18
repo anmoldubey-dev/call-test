@@ -208,6 +208,7 @@ export default function SuperuserPage() {
               { label: "Scheduling",     icon: "🗓️", id: "scheduling",     action: () => navigate("/superuser/scheduling") },
               { label: "Business Hours", icon: "🕐", id: "business-hours", action: () => navigate("/superuser/business-hours") },
               { label: "Queue Wait Times", icon: "⏱", id: "queue_wait_times" },
+              { label: "CRM",            icon: "👥", id: "crm",            action: () => navigate("/superuser/crm") },
             ].map((item) => (
               <button
                 key={item.label}
