@@ -123,6 +123,86 @@ function MuteButton() {
 }
 
 // ---------------------------------------------------------------
+// [Recording] SECTION: RECORDING CONTROLLER
+// Mixes local mic + remote agent audio via Web Audio API → MediaRecorder
+// Must be placed inside <LiveKitRoom> to access useRoomContext()
+// ---------------------------------------------------------------
+
+function RecordingController({ sessionId, consent }) {
+    const room     = useRoomContext();
+    const mrRef    = useRef(null);
+    const chunksRef = useRef([]);
+    const ctxRef   = useRef(null);
+
+    useEffect(() => {
+        if (consent !== 'admitted') return;
+
+        let stopped = false;
+
+        (async () => {
+            try {
+                // 1. Local mic stream
+                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // 2. AudioContext for mixing both sides
+                const ctx  = new AudioContext();
+                ctxRef.current = ctx;
+                const dest = ctx.createMediaStreamDestination();
+
+                ctx.createMediaStreamSource(micStream).connect(dest);
+
+                // 3. Connect remote agent audio tracks
+                const connectRemote = () => {
+                    room.remoteParticipants.forEach(p => {
+                        p.audioTrackPublications.forEach(pub => {
+                            const track = pub.track;
+                            if (track?.mediaStreamTrack) {
+                                const s = new MediaStream([track.mediaStreamTrack]);
+                                ctx.createMediaStreamSource(s).connect(dest);
+                            }
+                        });
+                    });
+                };
+                connectRemote();
+                // Re-connect if new tracks arrive after recording starts
+                room.on('trackSubscribed', connectRemote);
+
+                // 4. Record mixed stream
+                const mr = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus' });
+                chunksRef.current = [];
+                mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+                mr.onstop = async () => {
+                    if (stopped) return;
+                    stopped = true;
+                    micStream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+                    if (blob.size > 1000) {
+                        const form = new FormData();
+                        form.append('file', blob, `${sessionId}.webm`);
+                        fetch(
+                            `${_API}/api/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=admitted`,
+                            { method: 'POST', body: form }
+                        ).catch(() => {});
+                    }
+                };
+                mr.start(1000);
+                mrRef.current = mr;
+            } catch (e) {
+                console.warn('[Recording] setup failed:', e);
+            }
+        })();
+
+        return () => {
+            room.off('trackSubscribed');
+            if (mrRef.current?.state !== 'inactive') mrRef.current?.stop();
+            ctxRef.current?.close().catch(() => {});
+        };
+    }, [consent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return null;
+}
+
+// ---------------------------------------------------------------
 // SECTION: CONSTANTS
 // ---------------------------------------------------------------
 // All supported AI voice languages (matches backend voice registry)
@@ -197,11 +277,9 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const isSwitchingRoomRef = useRef(false);
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
-    // [Recording] consent state + refs
+    // [Recording] consent state — RecordingController (inside LiveKitRoom) handles actual capture
     const [recordingConsent, setRecordingConsent] = useState(null); // null | 'admitted' | 'denied'
-    const mediaRecorderRef   = useRef(null);
-    const recordingChunksRef = useRef([]);
-    const consentTimerRef    = useRef(null);
+    const consentTimerRef = useRef(null);
 
     const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai_agents_enabled') === 'true');
     const toggleAi = () => {
@@ -296,52 +374,20 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     // [Recording] CALL RECORDING + CONSENT
     // ---------------------------------------------------------------
 
-    // Show popup when agent joins (callState → "active"); auto-admit after 15s
+    // [Recording] Show popup when agent joins; auto-admit after 15s
+    // Actual capture is handled by RecordingController inside <LiveKitRoom>
     useEffect(() => {
         if (callState !== "active") return;
         setRecordingConsent(null);
         consentTimerRef.current = setTimeout(() => {
             setRecordingConsent('admitted');
-            _startRecording();
         }, 15000);
         return () => clearTimeout(consentTimerRef.current);
     }, [callState]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const _startRecording = async () => {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
-            recordingChunksRef.current = [];
-            mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
-            mr.start(1000);
-            mediaRecorderRef.current = mr;
-        } catch (e) { console.warn('[Recording] start failed:', e); }
-    };
-
-    const _stopAndUpload = (sessionId) => {
-        const mr = mediaRecorderRef.current;
-        if (!mr || mr.state === 'inactive') return;
-        mr.onstop = async () => {
-            try {
-                const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-                if (blob.size < 1000) return;
-                const form = new FormData();
-                form.append('file', blob, `${sessionId}.webm`);
-                await fetch(
-                    `${_API}/api/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=admitted`,
-                    { method: 'POST', body: form },
-                );
-            } catch (e) { console.warn('[Recording] upload failed:', e); }
-            mr.stream?.getTracks().forEach(t => t.stop());
-        };
-        mr.stop();
-    };
-
-    const handleConsentAdmit = async () => {
+    const handleConsentAdmit = () => {
         clearTimeout(consentTimerRef.current);
         setRecordingConsent('admitted');
-        await _startRecording();
-        // Save consent to backend
         fetch(`${_API}/api/webrtc/recording/consent`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ session_id: connectionDetails?.room || '', consent: 'admitted' }),
@@ -407,10 +453,8 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
 
     const handleEndCall = async () => {
         if (isSwitchingRoomRef.current) return; // ignore disconnect fired by room switch remount
-        // [Recording] upload if recording was admitted
-        if (recordingConsent === 'admitted' && connectionDetails?.room) {
-            _stopAndUpload(connectionDetails.room);
-        }
+        // [Recording] RecordingController unmounts automatically when callState leaves "active",
+        // triggering its useEffect cleanup which stops MediaRecorder and uploads the blob
         clearTimeout(consentTimerRef.current);
         _stopLangDetection();
         setNoAgents(false);
@@ -465,6 +509,10 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     <QueueTTSReceiver active={callState === "waiting"} />
                     <CallerTranscriptSender enabled={callState === "active"} sessionId={connectionDetails.room} />
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
+                    {/* [Recording] Two-sided recording: mixes local mic + remote agent audio */}
+                    {callState === "active" && (
+                        <RecordingController sessionId={connectionDetails.room} consent={recordingConsent} />
+                    )}
 
                     {/* [Recording] Consent popup — shown when agent joins, auto-admits after 15s */}
                     {callState === "active" && recordingConsent === null && (
