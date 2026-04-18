@@ -528,53 +528,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   return (
     <div style={{ display: 'flex', gap: '20px', height: '100%' }}>
 
-      {/* [Recording] Consent popup — shown when call connects and consent not yet given */}
-      {connected && recordingConsent === null && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 300,
-          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            background: '#0e1419', border: '1px solid #1e2d3d',
-            borderRadius: '16px', padding: '28px 32px', width: '380px',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
-              <span style={{ fontSize: '22px' }}>🎙</span>
-              <span style={{ fontSize: '15px', fontWeight: 700, color: '#e8f0f8' }}>Call Recording Notice</span>
-            </div>
-            <p style={{ fontSize: '12px', color: '#8899aa', lineHeight: 1.7, marginBottom: '20px' }}>
-              This call may be recorded for safety and quality purposes.
-              If you do not respond within <strong style={{ color: '#facc15' }}>15 seconds</strong>, the call will be recorded automatically.
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={handleConsentDeny}
-                style={{
-                  flex: 1, padding: '10px', borderRadius: '9px', fontSize: '13px',
-                  fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(239,68,68,0.35)',
-                  background: 'rgba(239,68,68,0.1)', color: '#f87171',
-                }}
-              >
-                ✕ Deny
-              </button>
-              <button
-                onClick={handleConsentAdmit}
-                style={{
-                  flex: 1, padding: '10px', borderRadius: '9px', fontSize: '13px',
-                  fontWeight: 600, cursor: 'pointer', border: 'none',
-                  background: '#6366f1', color: '#fff',
-                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
-                }}
-              >
-                ✓ Admit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { Globe, Phone, PhoneOff, Loader, Mic, MicOff, Activity, UserCircle2 } from 'lucide-react';
 import { useCall } from '../../context/CallContext';
 import { startCall as apiStartCall } from '../../services/callApiService';
@@ -47,7 +47,7 @@ export default function BrowserCallPanel() {
   const {
     callState, CALL_STATES, canEndCall,
     startCall, endCall,
-    setBackendCallId, setDialNumber, setLivekitSession
+    setBackendCallId, setDialNumber, setLivekitSession, livekitSession,
   } = useCall();
 
   // Initialization -> Local state management for session configuration
@@ -60,6 +60,10 @@ export default function BrowserCallPanel() {
   // Initialization -> UI state for active call telemetry
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+
+  // [Recording] consent: null=awaiting, 'admitted', 'denied'
+  const [recordingConsent, setRecordingConsent] = useState(null);
+  const consentTimerRef = useRef(null);
 
   // ---------------------------------------------------------------
   // SECTION: LIFECYCLE & EFFECT HOOKS
@@ -77,6 +81,36 @@ export default function BrowserCallPanel() {
     }
     return () => clearInterval(interval);
   }, [canEndCall]);
+
+  // [Recording] Show consent popup when call connects; auto-admit after 15s if no response
+  useEffect(() => {
+    if (!canEndCall) return;
+    setRecordingConsent(null);
+    consentTimerRef.current = setTimeout(() => {
+      setRecordingConsent('admitted');
+    }, 15000);
+    return () => clearTimeout(consentTimerRef.current);
+  }, [canEndCall]);
+
+  const handleConsentAdmit = () => {
+    clearTimeout(consentTimerRef.current);
+    setRecordingConsent('admitted');
+    const sid = livekitSession?.room || '';
+    fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')}/api/webrtc/recording/consent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sid, consent: 'admitted' }),
+    }).catch(() => {});
+  };
+
+  const handleConsentDeny = () => {
+    clearTimeout(consentTimerRef.current);
+    setRecordingConsent('denied');
+    const sid = livekitSession?.room || '';
+    fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')}/api/webrtc/recording/consent`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sid, consent: 'denied' }),
+    }).catch(() => {});
+  };
 
   // Internal Utility -> formatTime()-> Normalizes duration strings for human-readable display
   const formatTime = (seconds) => {
@@ -161,6 +195,54 @@ export default function BrowserCallPanel() {
   if (canEndCall) {
     return (
       <div style={{ maxWidth: '360px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', padding: '20px 0' }}>
+
+        {/* [Recording] Consent popup — shown to user when call starts, auto-admits after 15s */}
+        {recordingConsent === null && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 300,
+            background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+          }}>
+            <div style={{
+              background: '#0e1419', border: '1px solid #1e2d3d',
+              borderRadius: '18px', padding: '28px 28px 24px', width: '340px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                <span style={{ fontSize: '24px' }}>🎙</span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#e8f0f8' }}>Call Recording Notice</span>
+              </div>
+              <p style={{ fontSize: '12px', color: '#8899aa', lineHeight: 1.75, marginBottom: '20px', margin: '0 0 20px 0' }}>
+                This call may be <strong style={{ color: '#c4cdd8' }}>recorded for safety and quality</strong> purposes.
+                If you do not respond within <strong style={{ color: '#facc15' }}>15 seconds</strong>, the call will be recorded automatically.
+              </p>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={handleConsentDeny}
+                  style={{
+                    flex: 1, padding: '11px', borderRadius: '10px', fontSize: '13px',
+                    fontWeight: 600, cursor: 'pointer',
+                    border: '1px solid rgba(239,68,68,0.35)',
+                    background: 'rgba(239,68,68,0.1)', color: '#f87171',
+                  }}
+                >
+                  ✕ Deny
+                </button>
+                <button
+                  onClick={handleConsentAdmit}
+                  style={{
+                    flex: 1, padding: '11px', borderRadius: '10px', fontSize: '13px',
+                    fontWeight: 600, cursor: 'pointer', border: 'none',
+                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: '#fff',
+                    boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+                  }}
+                >
+                  ✓ Admit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '20px', padding: '6px 14px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', animation: 'pulse-dot 1.5s infinite' }} />
