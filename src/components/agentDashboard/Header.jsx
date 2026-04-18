@@ -109,14 +109,12 @@ function DateRangePicker({ from, to, onChange }) {
 // SECTION: METRIC AGGREGATION (KPI ROW)
 // ---------------------------------------------------------------
 
-function KPIRow({ kpis, fmtDur }) {
+function KPIRow({ stats }) {
   // Presentation -> KPIRow()-> Standardizes the rendering of high-level session metrics
   const cards = [
-    { label: "Total Calls", value: kpis?.total ?? "—" },
-    { label: "Resolved", value: kpis?.resolved ?? "—", color: "#1D9E75" },
-    { label: "Escalated", value: kpis?.escalated ?? "—", color: "#E24B4A" },
-    { label: "Avg Duration", value: fmtDur(kpis?.avgDuration) },
-    { label: "Total Cost", value: kpis?.totalCost != null ? `$${Number(kpis.totalCost).toFixed(2)}` : "—" },
+    { label: "Total Calls", value: stats?.total ?? "—" },
+    { label: "Resolved",    value: stats?.resolved ?? "—", color: "#1D9E75" },
+    { label: "Escalated",   value: stats?.escalated ?? "—", color: "#E24B4A" },
   ];
 
   return (
@@ -209,7 +207,7 @@ export default function Header({ activeTab, profile, csatData, dateRange, setDat
       </div>
 
       {(activeTab === "overview" || activeTab === "analytics") && (
-        <KPIRow kpis={stats?.kpis} fmtDur={fmtDur} />
+        <KPIRow stats={stats} />
       )}
 
     </div>

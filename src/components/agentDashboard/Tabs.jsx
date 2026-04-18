@@ -1,6 +1,7 @@
 import { StatusPie, SentimentPie, DailyLine, HourlyHeat, CategoryBubble, SankeyChart } from "./Charts";
 import CallTable from "./CallTable";
 import { fmtDate, fmt } from "../../utils/agentHelpers";
+// CallTable is still used in CallsTab
 
 // ======================== Dashboard Layout Orchestrator ========================
 // DashboardTabs -> A modular collection of layout containers designed to render 
@@ -46,7 +47,7 @@ const chartTitle = {
 // SECTION: OVERVIEW COMPONENT
 // ---------------------------------------------------------------
 
-export function OverviewTab({ stats, calls, chartsReady }) {
+export function OverviewTab({ stats, chartsReady }) {
   // Initialization -> OverviewTab()-> Renders the primary dashboard landing state
   if (!chartsReady) return null;
   return (
@@ -62,10 +63,6 @@ export function OverviewTab({ stats, calls, chartsReady }) {
       </div>
       <div style={{ marginBottom: 16 }}>
         <SankeyChart stats={stats} />
-      </div>
-      <div style={chartCard}>
-        <p style={chartTitle}>Recent Calls</p>
-        <CallTable calls={calls.slice(0, 8)} />
       </div>
     </>
   );
