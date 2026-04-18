@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Search, RefreshCw, ExternalLink, Zap } from 'lucide-react';
+import { Search, RefreshCw, ExternalLink, Zap, Pencil, Trash2, Check, X } from 'lucide-react';
 import api from '../../services/api';
 
 const BASE = api.defaults?.baseURL?.endsWith('/api') ? '' : '/api';
@@ -18,9 +18,67 @@ function SegBadge({ seg }) {
   );
 }
 
-function ContactDrawer({ contact, onClose }) {
+function EditModal({ contact, onClose, onSaved }) {
+  const [form, setForm] = useState({ name: contact.name || '', phone: contact.phone || '', company: contact.company || '', segment: contact.segment || 'standard' });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await api.patch(`${BASE}/crm/contacts/${encodeURIComponent(contact.email)}`, form);
+      onSaved(updated);
+      onClose();
+    } catch (e) {
+      setError('Save failed. Try again.');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 400, background: '#0e1419', border: '1px solid #1e2d3d', borderRadius: 14, padding: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#e8f0f8' }}>Edit Contact</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer' }}><X size={16} /></button>
+        </div>
+        <div style={{ fontSize: 10, color: '#5a7a9a' }}>{contact.email}</div>
+
+        {[['Name', 'name', 'text'], ['Phone', 'phone', 'text'], ['Company', 'company', 'text']].map(([label, key, type]) => (
+          <div key={key}>
+            <div style={{ fontSize: 10, color: '#5a7a9a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</div>
+            <input type={type} value={form[key]} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+              style={{ width: '100%', background: '#080c10', border: '1px solid #1e2d3d', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#e8f0f8', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+        ))}
+
+        <div>
+          <div style={{ fontSize: 10, color: '#5a7a9a', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Segment</div>
+          <select value={form.segment} onChange={e => setForm(f => ({ ...f, segment: e.target.value }))}
+            style={{ width: '100%', background: '#080c10', border: '1px solid #1e2d3d', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#e8f0f8', outline: 'none' }}>
+            <option value="standard">Standard</option>
+            <option value="VIP">VIP</option>
+            <option value="enterprise">Enterprise</option>
+          </select>
+        </div>
+
+        {error && <div style={{ fontSize: 11, color: '#f87171' }}>{error}</div>}
+
+        <button onClick={handleSave} disabled={saving}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '10px 0', background: 'rgba(99,102,241,0.15)', border: '1px solid #6366f1', borderRadius: 8, color: '#818cf8', fontSize: 12, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+          <Check size={13} /> {saving ? 'Saving…' : 'Save Changes'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ContactDrawer({ contact, onClose, onEdit, onDelete }) {
   const [profile, setProfile] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.get(`${BASE}/crm/contacts/${encodeURIComponent(contact.email)}`)
@@ -38,17 +96,54 @@ function ContactDrawer({ contact, onClose }) {
 
   const handleCreate = async () => {
     await api.post(`${BASE}/zoho/contacts`, { name: contact.name, email: contact.email, phone: contact.phone, company: contact.company }).catch(() => {});
+    await handleSync();
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api.delete(`${BASE}/crm/contacts/${encodeURIComponent(contact.email)}`);
+      onDelete(contact.email);
+      onClose();
+    } catch {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
   };
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
       <div onClick={e => e.stopPropagation()} style={{ width: 420, height: '100vh', background: '#0e1419', borderLeft: '1px solid #1e2d3d', overflowY: 'auto', padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 16, fontWeight: 700, color: '#e8f0f8' }}>{contact.name || '—'}</div>
             <div style={{ fontSize: 11, color: '#5a7a9a', marginTop: 2 }}>{contact.email}</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <button onClick={() => onEdit(contact)} title="Edit contact"
+              style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: 7, padding: '5px 8px', color: '#818cf8', cursor: 'pointer', display: 'flex' }}>
+              <Pencil size={13} />
+            </button>
+            {!confirmDelete ? (
+              <button onClick={() => setConfirmDelete(true)} title="Delete contact"
+                style={{ background: 'rgba(248,113,113,0.1)', border: '1px solid rgba(248,113,113,0.3)', borderRadius: 7, padding: '5px 8px', color: '#f87171', cursor: 'pointer', display: 'flex' }}>
+                <Trash2 size={13} />
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button onClick={handleDelete} disabled={deleting}
+                  style={{ background: 'rgba(248,113,113,0.2)', border: '1px solid #f87171', borderRadius: 7, padding: '4px 10px', color: '#f87171', cursor: 'pointer', fontSize: 10, fontWeight: 600 }}>
+                  {deleting ? '…' : 'Confirm'}
+                </button>
+                <button onClick={() => setConfirmDelete(false)}
+                  style={{ background: 'none', border: '1px solid #1e2d3d', borderRadius: 7, padding: '4px 8px', color: '#5a7a9a', cursor: 'pointer', fontSize: 10 }}>
+                  Cancel
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: 18 }}>✕</button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -103,6 +198,7 @@ export default function ContactsTab() {
   const [search, setSearch] = useState('');
   const [segment, setSegment] = useState('');
   const [selected, setSelected] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +216,15 @@ export default function ContactsTab() {
     c.email?.toLowerCase().includes(search.toLowerCase()) ||
     c.phone?.includes(search)
   );
+
+  const handleSaved = (updated) => {
+    setContacts(cs => cs.map(c => c.email === updated.email ? { ...c, ...updated } : c));
+    if (selected?.email === updated.email) setSelected(s => ({ ...s, ...updated }));
+  };
+
+  const handleDeleted = (email) => {
+    setContacts(cs => cs.filter(c => c.email !== email));
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -173,9 +278,14 @@ export default function ContactsTab() {
                       : <span style={{ fontSize: 10, color: '#5a7a9a' }}>Not synced</span>}
                   </td>
                   <td style={{ padding: '10px 14px' }}>
-                    <button onClick={e => { e.stopPropagation(); setSelected(c); }} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <ExternalLink size={10} /> View
-                    </button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={e => { e.stopPropagation(); setSelected(c); }} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '3px 9px', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <ExternalLink size={10} /> View
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setEditing(c); }} style={{ background: 'rgba(234,179,8,0.1)', color: '#eab308', border: '1px solid rgba(234,179,8,0.2)', borderRadius: 6, padding: '3px 9px', fontSize: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Pencil size={10} /> Edit
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -184,7 +294,21 @@ export default function ContactsTab() {
         </div>
       )}
 
-      {selected && <ContactDrawer contact={selected} onClose={() => setSelected(null)} />}
+      {selected && (
+        <ContactDrawer
+          contact={selected}
+          onClose={() => setSelected(null)}
+          onEdit={c => { setSelected(null); setEditing(c); }}
+          onDelete={handleDeleted}
+        />
+      )}
+      {editing && (
+        <EditModal
+          contact={editing}
+          onClose={() => setEditing(null)}
+          onSaved={handleSaved}
+        />
+      )}
     </div>
   );
 }
