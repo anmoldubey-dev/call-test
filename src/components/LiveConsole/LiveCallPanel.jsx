@@ -113,6 +113,12 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const [srStatus, setSrStatus] = useState('idle'); // 'idle' | 'active' | 'error'
   const [interimText, setInterimText] = useState('');    // live in-progress words
 
+  // [Recording] consent: null=awaiting, 'admitted', 'denied'
+  const [recordingConsent, setRecordingConsent] = useState(null);
+  const mediaRecorderRef    = useRef(null);
+  const recordingChunksRef  = useRef([]);
+  const consentTimerRef     = useRef(null);   // auto-record timer if no response
+
   // ---------------------------------------------------------------
   // SECTION: STABLE REFERENCE SYNC
   // ---------------------------------------------------------------
@@ -368,12 +374,91 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   }, [sessionToken]);
 
   // ---------------------------------------------------------------
+  // SECTION: CALL RECORDING
+  // ---------------------------------------------------------------
+
+  // [Recording] Start capturing mic audio via MediaRecorder
+  const _startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      recordingChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
+      mr.start(1000); // collect chunks every 1s
+      mediaRecorderRef.current = mr;
+    } catch (e) {
+      console.warn('[Recording] MediaRecorder start failed:', e);
+    }
+  };
+
+  // [Recording] Stop and upload blob to backend
+  const _stopAndUpload = (sessionId, consent) => {
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state === 'inactive') return;
+    mr.onstop = async () => {
+      try {
+        const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+        if (blob.size < 1000) return; // skip empty / near-empty recordings
+        const form = new FormData();
+        form.append('file', blob, `${sessionId}.webm`);
+        await fetch(
+          `${API_BASE}/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=${consent}`,
+          { method: 'POST', body: form },
+        );
+      } catch (e) {
+        console.warn('[Recording] upload failed:', e);
+      }
+      // stop all mic tracks
+      mr.stream?.getTracks().forEach(t => t.stop());
+    };
+    mr.stop();
+  };
+
+  // [Recording] Show consent popup when call connects; auto-admit after 15s if no response
+  useEffect(() => {
+    if (!connected) return;
+    setRecordingConsent(null); // reset on each new connection
+    // auto-record after 15s if agent doesn't respond
+    consentTimerRef.current = setTimeout(async () => {
+      setRecordingConsent('admitted');
+      await _startRecording();
+    }, 15000);
+    return () => clearTimeout(consentTimerRef.current);
+  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // [Recording] Handle Admit click
+  const handleConsentAdmit = async () => {
+    clearTimeout(consentTimerRef.current);
+    setRecordingConsent('admitted');
+    await _startRecording();
+  };
+
+  // [Recording] Handle Deny click — save consent to backend, no recording
+  const handleConsentDeny = async () => {
+    clearTimeout(consentTimerRef.current);
+    setRecordingConsent('denied');
+    const sid = livekitSession?.room || backendCallId || '';
+    try {
+      await fetch(`${API_BASE}/webrtc/recording/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id: sid, consent: 'denied' }),
+      });
+    } catch (_) {}
+  };
+
+  // ---------------------------------------------------------------
   // SECTION: ACTION HANDLERS
   // ---------------------------------------------------------------
 
   // Action Trigger -> handleEndCall()-> Terminates signaling room and backend call session
   // Keep ref fresh so room event listeners always call the latest version
   const handleEndCall = handleEndCallRef.current = async () => {
+    // [Recording] stop and upload before disconnecting
+    const sid = livekitSession?.room || backendCallId || '';
+    if (mediaRecorderRef.current?.state !== 'inactive') {
+      _stopAndUpload(sid, 'admitted');
+    }
     connectedRef.current = false;
     roomRef.current?.disconnect();
     if (backendCallId) {
@@ -442,6 +527,53 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
 
   return (
     <div style={{ display: 'flex', gap: '20px', height: '100%' }}>
+
+      {/* [Recording] Consent popup — shown when call connects and consent not yet given */}
+      {connected && recordingConsent === null && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 300,
+          background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div style={{
+            background: '#0e1419', border: '1px solid #1e2d3d',
+            borderRadius: '16px', padding: '28px 32px', width: '380px',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+              <span style={{ fontSize: '22px' }}>🎙</span>
+              <span style={{ fontSize: '15px', fontWeight: 700, color: '#e8f0f8' }}>Call Recording Notice</span>
+            </div>
+            <p style={{ fontSize: '12px', color: '#8899aa', lineHeight: 1.7, marginBottom: '20px' }}>
+              This call may be recorded for safety and quality purposes.
+              If you do not respond within <strong style={{ color: '#facc15' }}>15 seconds</strong>, the call will be recorded automatically.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleConsentDeny}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: '9px', fontSize: '13px',
+                  fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(239,68,68,0.35)',
+                  background: 'rgba(239,68,68,0.1)', color: '#f87171',
+                }}
+              >
+                ✕ Deny
+              </button>
+              <button
+                onClick={handleConsentAdmit}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: '9px', fontSize: '13px',
+                  fontWeight: 600, cursor: 'pointer', border: 'none',
+                  background: '#6366f1', color: '#fff',
+                  boxShadow: '0 4px 14px rgba(99,102,241,0.35)',
+                }}
+              >
+                ✓ Admit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
