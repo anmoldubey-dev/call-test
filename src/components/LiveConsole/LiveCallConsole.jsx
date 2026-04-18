@@ -110,13 +110,19 @@ export default function LiveCallConsole() {
     const base = api.defaults?.baseURL?.endsWith('/api') ? '' : '/api';
 
     api.get(`${base}/crm/caller-profile/${callId}`)
-      .then(data => { setCrmData(data); setCrmLoading(false); })
+      .then(data => {
+        setCrmData(data);
+        setCrmLoading(false);
+        // Create Desk ticket AFTER we have the caller email
+        const email = data?.caller?.email || '';
+        api.post(`${base}/zoho/desk/tickets`, {
+          contact_email: email,
+          subject: `Call – ${new Date().toLocaleDateString()}`,
+          priority: 'medium',
+          call_session_id: String(callId),
+        }).then(t => setCurrentTicket(t)).catch(() => {});
+      })
       .catch(() => setCrmLoading(false));
-
-    api.post(`${base}/zoho/desk/tickets`, {
-      subject: `Call – ${new Date().toLocaleDateString()}`,
-      call_session_id: String(callId),
-    }).then(t => setCurrentTicket(t)).catch(() => {});
   }, [isActive, localCallId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------
