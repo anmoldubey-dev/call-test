@@ -57,7 +57,15 @@ async function _saveTranscript(sessionId, speaker, text) {
 // SECTION: MAIN COMPONENT DEFINITION
 // ---------------------------------------------------------------
 
-export default function LiveCallPanel({ onNewCallerText }) {
+// [Sentiment] Badge style map for per-line sentiment indicators
+const SENTIMENT_BADGE = {
+  HAPPY:   { bg: '#22c55e22', color: '#22c55e', icon: '😊' },
+  ANGRY:   { bg: '#f8717122', color: '#f87171', icon: '😠' },
+  NEUTRAL: { bg: '#94a3b822', color: '#94a3b8', icon: '😐' },
+};
+
+// [Sentiment] Accepts lastSentiment prop — { display: "HAPPY"|"ANGRY"|"NEUTRAL" } — from LiveCallConsole
+export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   // Initialization -> Contextual state retrieval for call orchestration
   const {
     callState, CALL_STATES,
@@ -112,6 +120,20 @@ export default function LiveCallPanel({ onNewCallerText }) {
   // Sub-process -> onNewCallerTextRef: Maintains stable callback pointer for async data channels
   const onNewCallerTextRef = useRef(onNewCallerText);
   useEffect(() => { onNewCallerTextRef.current = onNewCallerText; }, [onNewCallerText]);
+
+  // [Sentiment] When lastSentiment changes, attach it to the most recent non-system transcript entry
+  useEffect(() => {
+    if (!lastSentiment?.display) return;
+    setTranscript(prev => {
+      if (!prev.length) return prev;
+      const lastIdx = [...prev].reverse().findIndex(t => t.speaker !== 'system');
+      if (lastIdx === -1) return prev;
+      const realIdx = prev.length - 1 - lastIdx;
+      const updated = [...prev];
+      updated[realIdx] = { ...updated[realIdx], sentimentDisplay: lastSentiment.display };
+      return updated;
+    });
+  }, [lastSentiment]);
 
   // Stable ref for handleEndCall so ParticipantDisconnected never captures a stale closure
   const handleEndCallRef = useRef(null);
@@ -668,6 +690,20 @@ export default function LiveCallPanel({ onNewCallerText }) {
                         color: isSystem ? '#3a4a5a' : '#c4cdd8', lineHeight: 1.5,
                       }}>
                         {t.text}
+                        {/* [Sentiment] Per-line sentiment badge — shown on caller and agent lines */}
+                        {!isSystem && t.sentimentDisplay && (() => {
+                          const b = SENTIMENT_BADGE[t.sentimentDisplay] || SENTIMENT_BADGE.NEUTRAL;
+                          return (
+                            <span style={{
+                              display: 'inline-block', marginLeft: 7,
+                              fontSize: 9, padding: '1px 6px', borderRadius: 4,
+                              background: b.bg, color: b.color, fontWeight: 700,
+                              letterSpacing: '0.04em', verticalAlign: 'middle',
+                            }}>
+                              {b.icon} {t.sentimentDisplay}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   );

@@ -59,6 +59,8 @@ export default function LiveCallConsole() {
   const [isBusy, setIsBusy] = useState(false);
   const [targetUser, setTargetUser] = useState("");
   const [aiInsight, setAiInsight] = useState(null);
+  // [Sentiment] Stores the most recent sentiment result to pass down to LiveCallPanel for per-line badge
+  const [lastSentiment, setLastSentiment] = useState(null);
   const aiTimerRef = useRef(null);
 
   // CRM state — populated when call goes active
@@ -87,6 +89,8 @@ export default function LiveCallConsole() {
         if (res.ok) {
           const data = await res.json();
           setAiInsight(data);
+          // [Sentiment] Store latest sentiment so LiveCallPanel can badge the transcript line
+          if (data.sentiment) setLastSentiment({ display: data.sentiment });
         }
       } catch (e) {
         console.warn('[AI Assist] fetch failed:', e);
@@ -291,7 +295,8 @@ export default function LiveCallConsole() {
       </div>
 
       <div className="flex-1 bg-[#0e1419] border border-[#1e2d3d] rounded-xl p-4 overflow-hidden">
-        <LiveCallPanel onNewCallerText={handleNewTranscript} />
+        {/* [Sentiment] lastSentiment passed for per-line transcript badge */}
+        <LiveCallPanel onNewCallerText={handleNewTranscript} lastSentiment={lastSentiment} />
       </div>
 
     </div>
