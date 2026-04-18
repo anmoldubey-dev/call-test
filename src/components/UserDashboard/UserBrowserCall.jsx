@@ -197,6 +197,12 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const isSwitchingRoomRef = useRef(false);
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
+    // [Recording] consent state + refs
+    const [recordingConsent, setRecordingConsent] = useState(null); // null | 'admitted' | 'denied'
+    const mediaRecorderRef   = useRef(null);
+    const recordingChunksRef = useRef([]);
+    const consentTimerRef    = useRef(null);
+
     const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai_agents_enabled') === 'true');
     const toggleAi = () => {
         const next = !aiEnabled;
@@ -287,6 +293,71 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     useEffect(() => () => _stopLangDetection(), []);
 
     // ---------------------------------------------------------------
+    // [Recording] CALL RECORDING + CONSENT
+    // ---------------------------------------------------------------
+
+    // Show popup when agent joins (callState → "active"); auto-admit after 15s
+    useEffect(() => {
+        if (callState !== "active") return;
+        setRecordingConsent(null);
+        consentTimerRef.current = setTimeout(() => {
+            setRecordingConsent('admitted');
+            _startRecording();
+        }, 15000);
+        return () => clearTimeout(consentTimerRef.current);
+    }, [callState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const _startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            recordingChunksRef.current = [];
+            mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
+            mr.start(1000);
+            mediaRecorderRef.current = mr;
+        } catch (e) { console.warn('[Recording] start failed:', e); }
+    };
+
+    const _stopAndUpload = (sessionId) => {
+        const mr = mediaRecorderRef.current;
+        if (!mr || mr.state === 'inactive') return;
+        mr.onstop = async () => {
+            try {
+                const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+                if (blob.size < 1000) return;
+                const form = new FormData();
+                form.append('file', blob, `${sessionId}.webm`);
+                await fetch(
+                    `${_API}/api/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=admitted`,
+                    { method: 'POST', body: form },
+                );
+            } catch (e) { console.warn('[Recording] upload failed:', e); }
+            mr.stream?.getTracks().forEach(t => t.stop());
+        };
+        mr.stop();
+    };
+
+    const handleConsentAdmit = async () => {
+        clearTimeout(consentTimerRef.current);
+        setRecordingConsent('admitted');
+        await _startRecording();
+        // Save consent to backend
+        fetch(`${_API}/api/webrtc/recording/consent`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: connectionDetails?.room || '', consent: 'admitted' }),
+        }).catch(() => {});
+    };
+
+    const handleConsentDeny = () => {
+        clearTimeout(consentTimerRef.current);
+        setRecordingConsent('denied');
+        fetch(`${_API}/api/webrtc/recording/consent`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: connectionDetails?.room || '', consent: 'denied' }),
+        }).catch(() => {});
+    };
+
+    // ---------------------------------------------------------------
     // CALL LIFECYCLE
     // ---------------------------------------------------------------
 
@@ -336,6 +407,11 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
 
     const handleEndCall = async () => {
         if (isSwitchingRoomRef.current) return; // ignore disconnect fired by room switch remount
+        // [Recording] upload if recording was admitted
+        if (recordingConsent === 'admitted' && connectionDetails?.room) {
+            _stopAndUpload(connectionDetails.room);
+        }
+        clearTimeout(consentTimerRef.current);
         _stopLangDetection();
         setNoAgents(false);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -389,6 +465,43 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     <QueueTTSReceiver active={callState === "waiting"} />
                     <CallerTranscriptSender enabled={callState === "active"} sessionId={connectionDetails.room} />
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
+
+                    {/* [Recording] Consent popup — shown when agent joins, auto-admits after 15s */}
+                    {callState === "active" && recordingConsent === null && (
+                        <div style={{
+                            position: 'fixed', inset: 0, zIndex: 9999,
+                            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+                        }}>
+                            <div style={{
+                                background: '#0e1419', border: '1px solid #1e2d3d',
+                                borderRadius: 18, padding: '28px 28px 24px', width: 340,
+                                boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                                    <span style={{ fontSize: 24 }}>🎙</span>
+                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#e8f0f8' }}>Call Recording Notice</span>
+                                </div>
+                                <p style={{ fontSize: 12, color: '#8899aa', lineHeight: 1.75, margin: '0 0 20px' }}>
+                                    This call may be <strong style={{ color: '#c4cdd8' }}>recorded for safety and quality</strong> purposes.
+                                    If you do not respond within <strong style={{ color: '#facc15' }}>15 seconds</strong>, the call will be recorded automatically.
+                                </p>
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                    <button onClick={handleConsentDeny} style={{
+                                        flex: 1, padding: 11, borderRadius: 10, fontSize: 13, fontWeight: 600,
+                                        cursor: 'pointer', border: '1px solid rgba(239,68,68,0.35)',
+                                        background: 'rgba(239,68,68,0.1)', color: '#f87171',
+                                    }}>✕ Deny</button>
+                                    <button onClick={handleConsentAdmit} style={{
+                                        flex: 1, padding: 11, borderRadius: 10, fontSize: 13, fontWeight: 600,
+                                        cursor: 'pointer', border: 'none',
+                                        background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff',
+                                        boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
+                                    }}>✓ Admit</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         {callState === "waiting" ? (
