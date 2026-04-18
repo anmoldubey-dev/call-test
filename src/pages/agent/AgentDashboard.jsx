@@ -89,7 +89,7 @@ export default function AgentDashboard() {
     // Read persisted department; null means picker hasn't been shown yet this session
     try { return JSON.parse(sessionStorage.getItem("user") || "{}").department || null; } catch { return null; }
   });
-  const { isActive, startCall, endCall, setLivekitSession, livekitSession } = useCall();
+  const { isActive, startCall, endCall, setLivekitSession, livekitSession, setBackendCallId } = useCall();
 
   const _agentEmail = (() => { try { return JSON.parse(sessionStorage.getItem("user") || "{}").email || ""; } catch { return ""; } })();
   usePushNotifications(_agentEmail);
@@ -364,6 +364,8 @@ export default function AgentDashboard() {
                  if (!tokenData.token) throw new Error("Empty token from backend");
 
                  // 2. Push the token to CallContext (LiveCallConsole will detect this instantly)
+                 // Pass room_name as backendCallId so LiveCallConsole CRM lookup uses it
+                 setBackendCallId(data.room_name);
                  setLivekitSession({
                      url: tokenData.livekit_url || import.meta.env.VITE_LIVEKIT_URL || 'wss://voice-ai-nv6qlh0d.livekit.cloud',
                      token: tokenData.token,

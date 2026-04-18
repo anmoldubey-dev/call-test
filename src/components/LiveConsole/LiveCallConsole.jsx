@@ -106,7 +106,11 @@ export default function LiveCallConsole() {
     setCurrentTicket(null);
     setCrmLoading(true);
 
-    const callId = localCallId || 'unknown';
+    // For incoming customer calls localCallId is null — fall back to the LiveKit
+    // room name which IS stored as room_id in cc_sessions so caller-profile finds it.
+    const callId = (localCallId && !localCallId.startsWith('offline-'))
+      ? localCallId
+      : (livekitSession?.room || 'unknown');
     const base = api.defaults?.baseURL?.endsWith('/api') ? '' : '/api';
 
     api.get(`${base}/crm/caller-profile/${callId}`)
