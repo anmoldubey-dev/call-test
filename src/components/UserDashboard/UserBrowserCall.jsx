@@ -129,10 +129,11 @@ function MuteButton() {
 // ---------------------------------------------------------------
 
 function RecordingController({ sessionId, consent }) {
-    const room     = useRoomContext();
-    const mrRef    = useRef(null);
-    const chunksRef = useRef([]);
-    const ctxRef   = useRef(null);
+    const room          = useRoomContext();
+    const mrRef         = useRef(null);
+    const chunksRef     = useRef([]);
+    const ctxRef        = useRef(null);
+    const remoteHandler = useRef(null); // holds connectRemote so cleanup can deregister it
 
     useEffect(() => {
         if (consent !== 'admitted') return;
@@ -147,24 +148,28 @@ function RecordingController({ sessionId, consent }) {
                 // 2. AudioContext for mixing both sides
                 const ctx  = new AudioContext();
                 ctxRef.current = ctx;
+                // Resume required — browsers suspend AudioContext after async gap from user gesture
+                if (ctx.state === 'suspended') await ctx.resume();
                 const dest = ctx.createMediaStreamDestination();
 
                 ctx.createMediaStreamSource(micStream).connect(dest);
 
-                // 3. Connect remote agent audio tracks
+                // 3. Connect remote agent audio tracks (deduplicated)
+                const connectedTracks = new Set();
                 const connectRemote = () => {
                     room.remoteParticipants.forEach(p => {
                         p.audioTrackPublications.forEach(pub => {
                             const track = pub.track;
-                            if (track?.mediaStreamTrack) {
+                            if (track?.mediaStreamTrack && !connectedTracks.has(track.mediaStreamTrack.id)) {
+                                connectedTracks.add(track.mediaStreamTrack.id);
                                 const s = new MediaStream([track.mediaStreamTrack]);
                                 ctx.createMediaStreamSource(s).connect(dest);
                             }
                         });
                     });
                 };
+                remoteHandler.current = connectRemote;
                 connectRemote();
-                // Re-connect if new tracks arrive after recording starts
                 room.on('trackSubscribed', connectRemote);
 
                 // 4. Record mixed stream
@@ -193,7 +198,7 @@ function RecordingController({ sessionId, consent }) {
         })();
 
         return () => {
-            room.off('trackSubscribed');
+            if (remoteHandler.current) room.off('trackSubscribed', remoteHandler.current);
             if (mrRef.current?.state !== 'inactive') mrRef.current?.stop();
             ctxRef.current?.close().catch(() => {});
         };
