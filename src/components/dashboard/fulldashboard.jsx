@@ -418,26 +418,6 @@ export function Header({
           ))}
         </div>
 
-        <div className="h-5 w-px bg-slate-700" />
-
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Channel</span>
-          <div className="flex items-center gap-1 bg-slate-900/60 rounded-lg p-1 border border-slate-800">
-            {channels.map((c) => (
-              <button
-                key={c}
-                onClick={() => setSelectedChannel(c)}
-                className={`px-2.5 py-1 text-xs rounded-md font-medium transition-all ${
-                  selectedChannel === c
-                    ? "bg-violet-600 text-white shadow-lg shadow-violet-500/20"
-                    : "text-slate-400 hover:text-white hover:bg-slate-800"
-                }`}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="ml-auto text-[10px] text-slate-600 font-mono hidden lg:block">
           {new Date().toLocaleString("en-IN", {

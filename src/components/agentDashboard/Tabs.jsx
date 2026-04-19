@@ -74,34 +74,10 @@ export function OverviewTab({ stats, chartsReady }) {
 // ---------------------------------------------------------------
 
 export function CallsTab({ calls }) {
-  const [dateFilter, setDateFilter] = useState('');
-  const filtered = dateFilter
-    ? calls.filter(c => (c.createdAt || '').slice(0, 10) === dateFilter)
-    : calls;
-
   return (
     <div style={chartCard}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-        <p style={{ ...chartTitle, margin: 0 }}>All Calls ({filtered.length})</p>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            style={{
-              background: 'var(--bg)', border: '1px solid var(--bdr)', borderRadius: 8,
-              padding: '5px 10px', color: dateFilter ? 'var(--txt)' : 'var(--txt2)',
-              fontSize: 11, outline: 'none', colorScheme: 'dark', cursor: 'pointer',
-            }}
-          />
-          {dateFilter && (
-            <button onClick={() => setDateFilter('')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '5px 8px', color: '#f87171', cursor: 'pointer', fontSize: 10 }}>
-              ✕
-            </button>
-          )}
-        </div>
-      </div>
-      <CallTable calls={filtered} full />
+      <p style={{ ...chartTitle, margin: '0 0 10px' }}>All Calls ({calls.length})</p>
+      <CallTable calls={calls} full />
     </div>
   );
 }

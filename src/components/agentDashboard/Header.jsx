@@ -163,31 +163,6 @@ export default function Header({ activeTab, profile, csatData, dateRange, setDat
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
 
           <div style={{
-            display: "flex", gap: 4,
-            background: "var(--bg)", borderRadius: 8, padding: 3,
-            border: "1px solid var(--bdr)",
-          }}>
-            {["all", "voice", "chat", "email"].map((ch) => (
-              <button
-                key={ch}
-                onClick={() => setChannel(ch)}
-                style={{
-                  padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 12,
-                  background: channel === ch ? "var(--bg2)" : "transparent",
-                  color: channel === ch ? "var(--txt)" : "var(--txt2)",
-                  fontWeight: channel === ch ? 600 : 400,
-                  boxShadow: channel === ch ? "0 0 0 1px var(--bdr2)" : "none",
-                  transition: "all 0.15s",
-                }}
-              >
-                {ch === "all" ? "All" : `${channelIcon[ch]} ${ch.charAt(0).toUpperCase() + ch.slice(1)}`}
-              </button>
-            ))}
-          </div>
-
-          <DateRangePicker from={dateRange.from} to={dateRange.to} onChange={setDateRange} />
-
-          <div style={{
             display: "flex", flexDirection: "column", alignItems: "center",
             padding: "6px 14px", borderRadius: 10,
             border: "1px solid var(--bdr2)",
