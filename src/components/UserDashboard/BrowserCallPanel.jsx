@@ -16,7 +16,9 @@ function _getUserEmail() {
 
 // [Direct Call] WebSocket base URL — same source as AgentDashboard
 const _WS_BASE = import.meta.env.VITE_WS_URL || 'wss://anteriorly-digestional-laquita.ngrok-free.dev';
-const _API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+// [Direct Call] HTTP API base: derive from VITE_API_URL or convert WS URL to HTTP
+const _API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')
+  || _WS_BASE.replace(/^wss/, 'https').replace(/^ws/, 'http');
 
 // ======================== Browser Call Orchestrator ========================
 // BrowserCallPanel -> Main portal for browser-to-agent WebRTC signaling. 
@@ -108,6 +110,28 @@ export default function BrowserCallPanel() {
     }, 15000);
     return () => clearTimeout(consentTimerRef.current);
   }, [canEndCall]);
+
+  // ---------------------------------------------------------------
+  // [Direct Call] SECTION: HTTP HEARTBEAT — register user as online every 30s
+  // This is the primary presence signal. More reliable than WS alone because it
+  // works even if the WebSocket URL is misconfigured or the connection is flaky.
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    const userEmail = _getUserEmail();
+    if (!userEmail) return;
+
+    const beat = () => {
+      fetch(`${_API_BASE}/api/cc/user/heartbeat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail }),
+      }).catch(() => {});
+    };
+
+    beat(); // [Direct Call] Send immediately on mount so presence is registered right away
+    const id = setInterval(beat, 30_000);
+    return () => clearInterval(id);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------
   // [Direct Call] SECTION: WEBSOCKET — register user as online + receive incoming calls

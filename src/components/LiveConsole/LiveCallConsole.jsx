@@ -285,86 +285,48 @@ export default function LiveCallConsole() {
     return (
       <div className="h-full flex items-center justify-center bg-[#080c10] p-6">
         <div className="w-[450px] bg-[#0e1419] border border-[#1e2d3d] rounded-2xl p-10 shadow-2xl">
-          <div className="text-center mb-6">
+          <div className="text-center mb-8">
             <h2 className="text-xl font-bold text-white tracking-tight flex items-center justify-center gap-2">
               <Globe size={20} className="text-[#6366f1]" /> Browser Call
             </h2>
             <p className="text-xs text-[#5a7a9a] mt-2">SR Comsoft AI Gateway</p>
           </div>
 
-          {/* [Direct Call] Mode toggle: AI Agent vs Direct Person call */}
-          <div className="flex gap-2 mb-6 bg-[#080c10] p-1 rounded-xl border border-[#1e2d3d]">
-            <button
-              onClick={() => { setCallMode("call-ai"); setDirectCallError(""); }}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${callMode === "call-ai" ? "bg-[#6366f1] text-white" : "text-[#5a7a9a] hover:text-white"}`}
-            >
-              📞 Call AI Agent
-            </button>
-            <button
-              onClick={() => { setCallMode("call-person"); setDirectCallError(""); }}
-              className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${callMode === "call-person" ? "bg-[#22c55e] text-white" : "text-[#5a7a9a] hover:text-white"}`}
-            >
-              👤 Call a Person
-            </button>
-          </div>
-
+          {/* [Direct Call] Single email input — no toggle, just enter the person's email and call */}
           <div className="space-y-6">
-            {callMode === "call-ai" ? (
-              /* ── AI Agent Call (existing flow) ── */
-              <>
-                <div className="bg-[#080c10] border border-[#1e2d3d] rounded-xl p-4">
-                  <label className="text-[10px] font-bold text-[#5a7a9a] uppercase mb-2 block tracking-widest">Target Identity</label>
-                  <input
-                    className="w-full bg-transparent text-lg text-[#818cf8] outline-none placeholder:text-[#1e2d3d]"
-                    placeholder="Enter Name (e.g. Rahul)"
-                    value={targetUser}
-                    onChange={(e) => setTargetUser(e.target.value)}
-                  />
-                </div>
-                <button
-                  disabled={isBusy}
-                  onClick={handleInitiateCall}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all ${isBusy ? 'bg-[#1e2d3d] text-[#5a7a9a]' : 'bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-lg shadow-[#6366f1]/20'}`}
-                >
-                  {isBusy ? <Loader2 className="animate-spin" size={20} /> : <Phone size={20} />}
-                  {isBusy ? "NEGOTIATING..." : "START CONVERSATION"}
-                </button>
-              </>
-            ) : (
-              /* [Direct Call] ── Direct Person Call (new flow) ── */
-              <>
-                <div className="bg-[#080c10] border border-[#1e2d3d] rounded-xl p-4">
-                  <label className="text-[10px] font-bold text-[#5a7a9a] uppercase mb-2 block tracking-widest">
-                    Caller's Email
-                  </label>
-                  <input
-                    className="w-full bg-transparent text-lg text-[#22c55e] outline-none placeholder:text-[#1e2d3d]"
-                    placeholder="e.g. user@company.com"
-                    type="email"
-                    value={targetEmail}
-                    onChange={(e) => { setTargetEmail(e.target.value); setDirectCallError(""); }}
-                    onKeyDown={(e) => e.key === "Enter" && handleDirectCall()}
-                  />
-                </div>
-                <p className="text-[10px] text-[#5a7a9a] -mt-2">
-                  A popup will appear on their dashboard if they are currently online.
-                </p>
-                {/* [Direct Call] Error / offline message */}
-                {directCallError && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">
-                    {directCallError}
-                  </div>
-                )}
-                <button
-                  disabled={isBusy}
-                  onClick={handleDirectCall}
-                  className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all ${isBusy ? 'bg-[#1e2d3d] text-[#5a7a9a]' : 'bg-[#22c55e] text-white hover:bg-[#16a34a] shadow-lg shadow-[#22c55e]/20'}`}
-                >
-                  {isBusy ? <Loader2 className="animate-spin" size={20} /> : <Phone size={20} />}
-                  {isBusy ? "RINGING..." : "CALL PERSON"}
-                </button>
-              </>
+            <div className="bg-[#080c10] border border-[#1e2d3d] rounded-xl p-4">
+              <label className="text-[10px] font-bold text-[#5a7a9a] uppercase mb-2 block tracking-widest">
+                Email of Person to Call
+              </label>
+              <input
+                className="w-full bg-transparent text-lg text-[#22c55e] outline-none placeholder:text-[#1e2d3d]"
+                placeholder="e.g. user@company.com"
+                type="email"
+                value={targetEmail}
+                onChange={(e) => { setTargetEmail(e.target.value); setDirectCallError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleDirectCall()}
+              />
+            </div>
+
+            <p className="text-[10px] text-[#5a7a9a] -mt-2">
+              A popup will appear on their dashboard if they are currently online.
+            </p>
+
+            {/* [Direct Call] Inline error — shown when target is offline or call fails */}
+            {directCallError && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-xs text-red-400">
+                {directCallError}
+              </div>
             )}
+
+            <button
+              disabled={isBusy}
+              onClick={handleDirectCall}
+              className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all ${isBusy ? 'bg-[#1e2d3d] text-[#5a7a9a]' : 'bg-[#6366f1] text-white hover:bg-[#4f46e5] shadow-lg shadow-[#6366f1]/20'}`}
+            >
+              {isBusy ? <Loader2 className="animate-spin" size={20} /> : <Phone size={20} />}
+              {isBusy ? "RINGING..." : "START CALL"}
+            </button>
           </div>
         </div>
       </div>
