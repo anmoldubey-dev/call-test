@@ -453,10 +453,13 @@ function KPICard({ title, value, unit, color }) {
   );
 }
 
-export function Infographics({ agents = [], stats = null }) {
-  const totalCalls = agents.reduce((s, a) => s + (a.callsHandled || 0), 0);
-  const resolved   = stats?.completedCalls ?? totalCalls;
-  const escalated  = agents.reduce((s, a) => s + (a.escalations || 0), 0);
+// Source: /api/superuser/realtime → cc_sessions (last 24h, agent_id != '')
+// callsHandled = COUNT(*) FILTER (WHERE status='completed')
+// escalations  = COUNT(*) FILTER (WHERE status IN ('abandoned','transferred'))
+export function Infographics({ agents = [] }) {
+  const resolved  = agents.reduce((s, a) => s + (a.callsHandled || 0), 0);
+  const escalated = agents.reduce((s, a) => s + (a.escalations  || 0), 0);
+  const totalCalls = resolved + escalated;
 
   const cards = [
     { title: "Total Calls", value: totalCalls, color: "indigo" },
