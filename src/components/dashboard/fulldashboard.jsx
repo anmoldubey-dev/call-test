@@ -161,17 +161,106 @@ function Scene3D({ agents, onBubbleClick, hoveredAgent, setHoveredAgent, interac
   );
 }
 
+// 2D SVG bubble chart — no WebGL, no context-loss issues
+function BubbleChart2D({ agents, onAgentClick }) {
+  const [hovered, setHovered] = useState(null);
+  const W = 560, H = 300, PAD = 40;
+
+  const bubbles = useMemo(() => {
+    if (!agents || agents.length === 0) return [];
+    const maxCalls = Math.max(...agents.map(a => a.callsHandled || 0), 1);
+    const maxCsat  = 5;
+    return agents.map((agent, i) => {
+      const calls    = agent.callsHandled || 0;
+      const csat     = agent.csat         || 3;
+      const workload = agent.workload      || 20;
+      const risk     = (agent.riskLevel || agent.risklevel || "low").toLowerCase();
+      const color    = risk.includes("high") ? "#EF4444" : risk.includes("medium") ? "#F59E0B" : "#10B981";
+      const r        = Math.max(10, Math.min(32, workload / 3));
+      const cx       = PAD + (calls / maxCalls) * (W - PAD * 2);
+      const cy       = H - PAD - ((csat - 1) / (maxCsat - 1)) * (H - PAD * 2);
+      return { cx, cy, r, color, agent, key: agent.id || i };
+    });
+  }, [agents]);
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <div className="flex justify-between text-[10px] text-slate-500 px-1 mb-1">
+        <span>● size = workload%</span>
+        <span className="flex gap-3">
+          <span className="text-emerald-400">● low risk</span>
+          <span className="text-amber-400">● medium</span>
+          <span className="text-red-400">● high</span>
+        </span>
+      </div>
+      <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ minWidth: 300, maxHeight: 300 }}>
+        {/* axis lines */}
+        <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="#334155" strokeWidth="1" />
+        <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="#334155" strokeWidth="1" />
+        <text x={PAD} y={H - 8} fill="#64748b" fontSize="10" textAnchor="start">Calls Handled →</text>
+        <text x={8} y={PAD + 4} fill="#64748b" fontSize="10" textAnchor="start">CSAT ↑</text>
+
+        {bubbles.map(b => (
+          <g key={b.key}
+            style={{ cursor: "pointer" }}
+            onClick={() => onAgentClick?.(b.agent)}
+            onMouseEnter={() => setHovered(b.key)}
+            onMouseLeave={() => setHovered(null)}
+          >
+            <circle
+              cx={b.cx} cy={b.cy} r={hovered === b.key ? b.r * 1.25 : b.r}
+              fill={b.color} fillOpacity={hovered === b.key ? 0.9 : 0.55}
+              stroke={b.color} strokeWidth={hovered === b.key ? 2 : 1}
+              style={{ transition: "all 0.2s" }}
+            />
+            {(hovered === b.key || b.r > 18) && (
+              <text
+                x={b.cx} y={b.cy + 4}
+                fill="#fff" fontSize="9" textAnchor="middle"
+                style={{ pointerEvents: "none", fontWeight: 600 }}
+              >
+                {(b.agent.name || "").split(" ")[0]}
+              </text>
+            )}
+            {hovered === b.key && (
+              <g>
+                <rect x={b.cx + b.r + 4} y={b.cy - 28} width={110} height={52}
+                  rx="5" fill="#0f172a" stroke={b.color} strokeWidth="1" />
+                <text x={b.cx + b.r + 10} y={b.cy - 14} fill="#e2e8f0" fontSize="9" fontWeight="700">
+                  {b.agent.name}
+                </text>
+                <text x={b.cx + b.r + 10} y={b.cy} fill="#94a3b8" fontSize="8">
+                  Calls: {b.agent.callsHandled || 0}  CSAT: {b.agent.csat || 0}
+                </text>
+                <text x={b.cx + b.r + 10} y={b.cy + 13} fill="#94a3b8" fontSize="8">
+                  Load: {b.agent.workload || 0}%
+                </text>
+              </g>
+            )}
+          </g>
+        ))}
+
+        {bubbles.length === 0 && (
+          <text x={W / 2} y={H / 2} fill="#475569" fontSize="13" textAnchor="middle">
+            No agent data available
+          </text>
+        )}
+      </svg>
+    </div>
+  );
+}
+
 export function BubbleChart({ agents, onAgentClick }) {
   const [show3DDetail, setShow3DDetail] = useState(false);
   const [hoveredAgent, setHoveredAgent] = useState(null);
 
   return (
     <div className="relative w-full">
-      <div className="p-4 h-[450px] bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-4 bg-slate-900/40 backdrop-blur-md border border-slate-800 rounded-2xl shadow-xl">
+        <div className="flex items-center justify-between mb-4">
           <div>
             <h3 className="text-xl font-bold text-white tracking-tight">Agents Performance Matrix</h3>
-            <p className="text-slate-400 text-xs mt-1">Click a bubble to view agent profile</p>
+            <p className="text-slate-400 text-xs mt-1">Click a bubble to view agent profile · X-axis: calls · Y-axis: CSAT</p>
           </div>
           <button
             onClick={() => setShow3DDetail(true)}
@@ -185,11 +274,8 @@ export function BubbleChart({ agents, onAgentClick }) {
           </button>
         </div>
 
-        <div className="h-[320px] cursor-grab active:cursor-grabbing">
-          <Canvas camera={{ position: [14, 14, 14], fov: 45 }}>
-            <Scene3D agents={agents} onBubbleClick={onAgentClick} hoveredAgent={hoveredAgent} setHoveredAgent={setHoveredAgent} />
-          </Canvas>
-        </div>
+        {/* 2D SVG chart — always visible, no WebGL */}
+        <BubbleChart2D agents={agents} onAgentClick={onAgentClick} />
       </div>
 
       {show3DDetail && (
