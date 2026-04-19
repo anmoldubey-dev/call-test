@@ -24,6 +24,9 @@ import React, { useState, useEffect, useRef } from "react";
 // ||
 // =============================================================================================================
 
+// [Neural Engine] Base URL for the backend API — uses VITE_API_URL env var in production, falls back to Vite proxy in dev
+const _NEURAL_API = (import.meta.env.VITE_API_URL || '') + '/api/ask';
+
 export function AIChatBox() {
 
   // ---------------------------------------------------------------
@@ -63,10 +66,13 @@ export function AIChatBox() {
     setAnswer(""); // Logic -> Resets state to prevent visual confusion during new requests
     
     try {
-      // Internal Call -> Hits local neural-bridge API for query translation
-      const res = await fetch("/api/ask", {
+      // [Neural Engine] POST to backend — sends natural-language query, receives synthesized answer
+      const res = await fetch(_NEURAL_API, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${sessionStorage.getItem("token")}`,
+        },
         body: JSON.stringify({ query })
       });
       
