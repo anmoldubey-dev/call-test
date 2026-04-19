@@ -122,90 +122,7 @@ function MuteButton() {
     );
 }
 
-// ---------------------------------------------------------------
-// [Recording] SECTION: RECORDING CONTROLLER
-// Mixes local mic + remote agent audio via Web Audio API → MediaRecorder
-// Must be placed inside <LiveKitRoom> to access useRoomContext()
-// ---------------------------------------------------------------
 
-function RecordingController({ sessionId, consent }) {
-    const room          = useRoomContext();
-    const mrRef         = useRef(null);
-    const chunksRef     = useRef([]);
-    const ctxRef        = useRef(null);
-    const remoteHandler = useRef(null); // holds connectRemote so cleanup can deregister it
-
-    useEffect(() => {
-        if (consent !== 'admitted') return;
-
-        let stopped = false;
-
-        (async () => {
-            try {
-                // 1. Local mic stream
-                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-                // 2. AudioContext for mixing both sides
-                const ctx  = new AudioContext();
-                ctxRef.current = ctx;
-                // Resume required — browsers suspend AudioContext after async gap from user gesture
-                if (ctx.state === 'suspended') await ctx.resume();
-                const dest = ctx.createMediaStreamDestination();
-
-                ctx.createMediaStreamSource(micStream).connect(dest);
-
-                // 3. Connect remote agent audio tracks (deduplicated)
-                const connectedTracks = new Set();
-                const connectRemote = () => {
-                    room.remoteParticipants.forEach(p => {
-                        p.audioTrackPublications.forEach(pub => {
-                            const track = pub.track;
-                            if (track?.mediaStreamTrack && !connectedTracks.has(track.mediaStreamTrack.id)) {
-                                connectedTracks.add(track.mediaStreamTrack.id);
-                                const s = new MediaStream([track.mediaStreamTrack]);
-                                ctx.createMediaStreamSource(s).connect(dest);
-                            }
-                        });
-                    });
-                };
-                remoteHandler.current = connectRemote;
-                connectRemote();
-                room.on('trackSubscribed', connectRemote);
-
-                // 4. Record mixed stream
-                const mr = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus' });
-                chunksRef.current = [];
-                mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-                mr.onstop = async () => {
-                    if (stopped) return;
-                    stopped = true;
-                    micStream.getTracks().forEach(t => t.stop());
-                    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-                    if (blob.size > 1000) {
-                        const form = new FormData();
-                        form.append('file', blob, `${sessionId}.webm`);
-                        fetch(
-                            `${_API}/api/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=admitted`,
-                            { method: 'POST', body: form }
-                        ).catch(() => {});
-                    }
-                };
-                mr.start(1000);
-                mrRef.current = mr;
-            } catch (e) {
-                console.warn('[Recording] setup failed:', e);
-            }
-        })();
-
-        return () => {
-            if (remoteHandler.current) room.off('trackSubscribed', remoteHandler.current);
-            if (mrRef.current?.state !== 'inactive') mrRef.current?.stop();
-            ctxRef.current?.close().catch(() => {});
-        };
-    }, [consent]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    return null;
-}
 
 // ---------------------------------------------------------------
 // SECTION: CONSTANTS
@@ -282,10 +199,6 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     const isSwitchingRoomRef = useRef(false);
 
     const API_BASE = import.meta.env.VITE_API_URL || '';
-    // [Recording] consent state — RecordingController (inside LiveKitRoom) handles actual capture
-    const [recordingConsent, setRecordingConsent] = useState(null); // null | 'admitted' | 'denied'
-    const consentTimerRef = useRef(null);
-
     const [aiEnabled, setAiEnabled] = useState(() => localStorage.getItem('ai_agents_enabled') === 'true');
     const toggleAi = () => {
         const next = !aiEnabled;
@@ -376,39 +289,6 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
     useEffect(() => () => _stopLangDetection(), []);
 
     // ---------------------------------------------------------------
-    // [Recording] CALL RECORDING + CONSENT
-    // ---------------------------------------------------------------
-
-    // [Recording] Show popup when agent joins; auto-admit after 15s
-    // Actual capture is handled by RecordingController inside <LiveKitRoom>
-    useEffect(() => {
-        if (callState !== "active") return;
-        setRecordingConsent(null);
-        consentTimerRef.current = setTimeout(() => {
-            setRecordingConsent('admitted');
-        }, 15000);
-        return () => clearTimeout(consentTimerRef.current);
-    }, [callState]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const handleConsentAdmit = () => {
-        clearTimeout(consentTimerRef.current);
-        setRecordingConsent('admitted');
-        fetch(`${_API}/api/webrtc/recording/consent`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: connectionDetails?.room || '', consent: 'admitted' }),
-        }).catch(() => {});
-    };
-
-    const handleConsentDeny = () => {
-        clearTimeout(consentTimerRef.current);
-        setRecordingConsent('denied');
-        fetch(`${_API}/api/webrtc/recording/consent`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session_id: connectionDetails?.room || '', consent: 'denied' }),
-        }).catch(() => {});
-    };
-
-    // ---------------------------------------------------------------
     // CALL LIFECYCLE
     // ---------------------------------------------------------------
 
@@ -458,9 +338,6 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
 
     const handleEndCall = async () => {
         if (isSwitchingRoomRef.current) return; // ignore disconnect fired by room switch remount
-        // [Recording] RecordingController unmounts automatically when callState leaves "active",
-        // triggering its useEffect cleanup which stops MediaRecorder and uploads the blob
-        clearTimeout(consentTimerRef.current);
         _stopLangDetection();
         setNoAgents(false);
         if (window.speechSynthesis) window.speechSynthesis.cancel();
@@ -514,48 +391,6 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     <QueueTTSReceiver active={callState === "waiting"} />
                     <CallerTranscriptSender enabled={callState === "active"} sessionId={connectionDetails.room} />
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
-                    {/* [Recording] Two-sided recording: mixes local mic + remote agent audio */}
-                    {callState === "active" && (
-                        <RecordingController sessionId={connectionDetails.room} consent={recordingConsent} />
-                    )}
-
-                    {/* [Recording] Consent popup — shown when agent joins, auto-admits after 15s */}
-                    {callState === "active" && recordingConsent === null && (
-                        <div style={{
-                            position: 'fixed', inset: 0, zIndex: 9999,
-                            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-                        }}>
-                            <div style={{
-                                background: '#0e1419', border: '1px solid #1e2d3d',
-                                borderRadius: 18, padding: '28px 28px 24px', width: 340,
-                                boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
-                            }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                                    <span style={{ fontSize: 24 }}>🎙</span>
-                                    <span style={{ fontSize: 15, fontWeight: 700, color: '#e8f0f8' }}>Call Recording Notice</span>
-                                </div>
-                                <p style={{ fontSize: 12, color: '#8899aa', lineHeight: 1.75, margin: '0 0 20px' }}>
-                                    This call may be <strong style={{ color: '#c4cdd8' }}>recorded for safety and quality</strong> purposes.
-                                    If you do not respond within <strong style={{ color: '#facc15' }}>15 seconds</strong>, the call will be recorded automatically.
-                                </p>
-                                <div style={{ display: 'flex', gap: 10 }}>
-                                    <button onClick={handleConsentDeny} style={{
-                                        flex: 1, padding: 11, borderRadius: 10, fontSize: 13, fontWeight: 600,
-                                        cursor: 'pointer', border: '1px solid rgba(239,68,68,0.35)',
-                                        background: 'rgba(239,68,68,0.1)', color: '#f87171',
-                                    }}>✕ Deny</button>
-                                    <button onClick={handleConsentAdmit} style={{
-                                        flex: 1, padding: 11, borderRadius: 10, fontSize: 13, fontWeight: 600,
-                                        cursor: 'pointer', border: 'none',
-                                        background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', color: '#fff',
-                                        boxShadow: '0 4px 14px rgba(99,102,241,0.4)',
-                                    }}>✓ Admit</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                         {callState === "waiting" ? (
                             <>

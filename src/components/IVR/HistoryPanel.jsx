@@ -85,11 +85,8 @@ function StatusBadge({ status }) {
   );
 }
 
-// [Recording] Base URL for serving recording files from backend
-const _API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
-
 // Initialization -> TranscriptModal()-> Orchestrates the secondary media layer for transcript retrieval
-function TranscriptModal({ callId, callerNumber, recordingUrl, onClose }) {
+function TranscriptModal({ callId, callerNumber, onClose }) {
   const [items, setItems] = useState(null);
 
   // 🟢 FIX: Correct API path with /api/calls
@@ -141,13 +138,6 @@ function TranscriptModal({ callId, callerNumber, recordingUrl, onClose }) {
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#5a7a9a', cursor: 'pointer', fontSize: '16px' }}>✕</button>
         </div>
-        {/* [Recording] Audio player shown when recording_url is available */}
-        {recordingUrl && (
-          <div style={{ padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ fontSize: '9px', color: '#5a7a9a', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: '6px' }}>🎙 Recording</div>
-            <audio controls src={`${_API_BASE}${recordingUrl}`} style={{ width: '100%', height: '32px' }} />
-          </div>
-        )}
         <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {!items ? (
             <div style={{ fontSize: '11px', color: '#5a7a9a' }}>Loading…</div>
@@ -269,7 +259,7 @@ export default function HistoryPanel() {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                {['Caller', 'Agent', 'Department', 'Duration', 'Status', 'Sentiment', 'Recording', 'Date', 'Start', 'End', ''].map(h => (
+                {['Caller', 'Agent', 'Department', 'Duration', 'Status', 'Sentiment', 'Date', 'Start', 'End', ''].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: '9px', color: '#5a7a9a', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'left', fontWeight: 500 }}>{h}</th>
                 ))}
               </tr>
@@ -295,23 +285,13 @@ export default function HistoryPanel() {
                       }}>{c.sentiment}</span>
                     ) : <span style={{ fontSize: '10px', color: '#5a7a9a' }}>—</span>}
                   </td>
-                  {/* [Recording] Recording indicator cell */}
-                  <td style={{ padding: '10px 14px' }}>
-                    {c.recording_url ? (
-                      <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(99,102,241,0.12)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', fontWeight: 600 }}>
-                        🎙 Yes
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: '10px', color: '#3a4a5a' }}>—</span>
-                    )}
-                  </td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{formatDateOnly(c.created_at)}</td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{formatTimeOnly(c.created_at)}</td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{c.ended_at ? formatTimeOnly(c.ended_at) : '—'}</td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setTranscript(c)} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '6px', padding: '3px 9px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <MessageSquare size={10} /> {c.recording_url ? '🎙 View' : 'Transcript'}
+                        <MessageSquare size={10} /> Transcript
                       </button>
                       <button onClick={() => handleDelete(c.id)} style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171', border: 'none', borderRadius: '6px', padding: '3px 7px', cursor: 'pointer' }}>
                         <Trash2 size={10} />
@@ -329,7 +309,6 @@ export default function HistoryPanel() {
         <TranscriptModal
           callId={transcript.id}
           callerNumber={transcript.caller_number}
-          recordingUrl={transcript.recording_url || null}
           onClose={() => setTranscript(null)}
         />
       )}

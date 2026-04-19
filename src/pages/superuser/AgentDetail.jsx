@@ -266,15 +266,6 @@ export function AgentDetail() {
                         </p>
                       </td>
                       <td className="py-4 pr-6 align-top">
-                        {log.recording_url ? (
-                          <audio controls className="h-8 w-full max-w-[220px] rounded-lg border border-slate-700 bg-slate-900 mb-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                            <source src={`${API_BASE}${log.recording_url}`} type="audio/webm" />
-                          </audio>
-                        ) : (
-                          <div className="h-8 w-full max-w-[220px] rounded-lg border border-dashed border-slate-700 flex items-center justify-center text-[10px] text-slate-600 italic mb-2">
-                            No Audio Available
-                          </div>
-                        )}
                         <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed" title={log.issue_summary}>
                           <span className="text-slate-500 font-bold">Summary:</span> {log.issue_summary}
                         </p>

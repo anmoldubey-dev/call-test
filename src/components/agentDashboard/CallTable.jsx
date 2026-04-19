@@ -124,16 +124,6 @@ function CallModal({ call, onClose }) {
             </div>
           )}
 
-          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--bdr)" }}>
-            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
-              🎙 Recording
-            </p>
-            {call.recordingUrl
-              ? <audio controls src={`${API_BASE}${call.recordingUrl}`} style={{ width: "100%" }} />
-              : <p style={{ fontSize: 12, color: "var(--txt2)", margin: 0 }}>No recording available.</p>
-            }
-          </div>
-
           <div style={{ marginTop: 10, padding: "12px 14px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--bdr)" }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
               📄 Transcript
