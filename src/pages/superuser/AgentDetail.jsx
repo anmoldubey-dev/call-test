@@ -25,7 +25,7 @@ import { useParams, useNavigate } from "react-router-dom";
 // ============================================================================
 
 // ✅ VITE FIX: Added API Base URL
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 
 // ---------------------------------------------------------------
 // SECTION: ATOMIC PRESENTATION MODULES
@@ -268,7 +268,7 @@ export function AgentDetail() {
                       <td className="py-4 pr-6 align-top">
                         {log.recording_url ? (
                           <audio controls className="h-8 w-full max-w-[220px] rounded-lg border border-slate-700 bg-slate-900 mb-2 opacity-70 group-hover:opacity-100 transition-opacity">
-                            <source src={log.recording_url} type="audio/mpeg" />
+                            <source src={`${API_BASE}${log.recording_url}`} type="audio/webm" />
                           </audio>
                         ) : (
                           <div className="h-8 w-full max-w-[220px] rounded-lg border border-dashed border-slate-700 flex items-center justify-center text-[10px] text-slate-600 italic mb-2">

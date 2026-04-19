@@ -30,7 +30,7 @@ import * as THREE from "three";
 import { useNavigate } from "react-router-dom";
 
 // ✅ VITE FIX: Added API Base URL
-const API_BASE = import.meta.env.VITE_API_URL || '';
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
 
 // ---------------------------------------------------------------
 // SECTION: 3D MESH COMPONENTS
@@ -398,7 +398,7 @@ function CallCard({ call }) {
             </p>
 
             {call.recording_url ? (
-              <AudioPlayer url={call.recording_url} />
+              <AudioPlayer url={`${API_BASE}${call.recording_url}`} />
             ) : (
               <div className="flex items-center gap-3 px-4 py-3 bg-slate-900/60 border border-dashed border-slate-700/60 rounded-xl">
                 <div className="w-8 h-8 rounded-full bg-slate-800/80 flex items-center justify-center flex-shrink-0">

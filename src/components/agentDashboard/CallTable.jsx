@@ -129,7 +129,7 @@ function CallModal({ call, onClose }) {
               🎙 Recording
             </p>
             {call.recordingUrl
-              ? <audio controls src={call.recordingUrl} style={{ width: "100%" }} />
+              ? <audio controls src={`${API_BASE}${call.recordingUrl}`} style={{ width: "100%" }} />
               : <p style={{ fontSize: 12, color: "var(--txt2)", margin: 0 }}>No recording available.</p>
             }
           </div>
