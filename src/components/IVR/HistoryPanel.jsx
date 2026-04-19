@@ -167,7 +167,7 @@ function TranscriptModal({ callId, callerNumber, onClose }) {
 // ---------------------------------------------------------------
 
 // Initialization -> HistoryPanel()-> Main functional entry point for the call auditing interface
-export default function HistoryPanel() {
+export default function HistoryPanel({ showDateFilter = true }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -215,9 +215,11 @@ export default function HistoryPanel() {
   };
 
   // Logic Branch -> filtering: Computes visibility based on search/date criteria and local deletion state
+  const q = search.toLowerCase();
   const filtered = history.filter(c =>
     !deleted.has(c.id) &&
-    (!search || c.caller_number?.includes(search) || c.department?.toLowerCase().includes(search.toLowerCase())) &&
+    (!q || [c.caller_number, c.caller_name, c.agent_name, c.department, c.status, c.sentiment]
+      .some(v => v?.toLowerCase().includes(q))) &&
     (!dateFilter || (c.created_at || '').slice(0, 10) === dateFilter)
   );
 
@@ -246,20 +248,24 @@ export default function HistoryPanel() {
               }}
             />
           </div>
-          <input
-            type="date"
-            value={dateFilter}
-            onChange={e => setDateFilter(e.target.value)}
-            style={{
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '8px', padding: '6px 10px', color: dateFilter ? '#e8f0f8' : '#5a7a9a',
-              fontSize: '11px', outline: 'none', colorScheme: 'dark', cursor: 'pointer',
-            }}
-          />
-          {dateFilter && (
-            <button onClick={() => setDateFilter('')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 8px', color: '#f87171', cursor: 'pointer', fontSize: '10px' }}>
-              ✕
-            </button>
+          {showDateFilter && (
+            <>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={e => setDateFilter(e.target.value)}
+                style={{
+                  background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '8px', padding: '6px 10px', color: dateFilter ? '#e8f0f8' : '#5a7a9a',
+                  fontSize: '11px', outline: 'none', colorScheme: 'dark', cursor: 'pointer',
+                }}
+              />
+              {dateFilter && (
+                <button onClick={() => setDateFilter('')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 8px', color: '#f87171', cursor: 'pointer', fontSize: '10px' }}>
+                  ✕
+                </button>
+              )}
+            </>
           )}
           <button onClick={() => load()} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '6px 10px', color: '#8899aa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
             <RefreshCw size={11} /> Refresh
