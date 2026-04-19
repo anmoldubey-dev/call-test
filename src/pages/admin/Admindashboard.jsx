@@ -99,7 +99,7 @@ const AdminDashboard = () => {
               row.status === 'failed' ? 'text-red-400 bg-red-500/20' :
                 row.status === 'voicemail' ? 'text-blue-400 bg-blue-500/20' :
                   'text-gray-400 bg-gray-500/20',
-          queries: [{ time: "00:00", type: row.category || "General", text: row.issue_summary || "No summary" }]
+          queries: [{ time: "00:00", type: row.department || row.category || "General", text: row.sentiment ? `Sentiment: ${row.sentiment}` : "No summary" }]
         }));
         setAllCallLogs(formattedAILogs.reverse());
         setAiIntent(`AI Query: ${smartQuery.substring(0, 15)}...`);
@@ -131,20 +131,20 @@ const AdminDashboard = () => {
         // Logic Branch -> Normalization: Serializes raw database rows into UI model objects
         const formattedLogs = data.map(row => ({
           id: row.id,
-          caller: row.caller_name || "Unknown Caller",
+          caller: row.caller_name || row.caller_number || "Unknown Caller",
           agent: row.agent_name || "Unknown Agent",
-          team: row.category || "General",
+          team: row.department || "General",
           csat: parseFloat(row.csat || (Math.random() * 2 + 3).toFixed(1)),
           escalation_risk: Math.floor(Math.random() * 10) + 1,
           startTime: row.created_at || new Date().toLocaleString(),
           duration: row.duration_seconds || 0,
           status: row.status || "Active",
           statusColor:
-            row.status === 'completed' ? 'text-green-400 bg-green-500/20' :
+            row.status === 'ended' || row.status === 'completed' ? 'text-green-400 bg-green-500/20' :
               row.status === 'failed' ? 'text-red-400 bg-red-500/20' :
-                row.status === 'voicemail' ? 'text-blue-400 bg-blue-500/20' :
+                row.status === 'transferred' ? 'text-blue-400 bg-blue-500/20' :
                   'text-gray-400 bg-gray-500/20',
-          queries: [{ time: "00:00", type: row.category || "General", text: row.issue_summary || "No summary" }]
+          queries: [{ time: "00:00", type: row.department || "General", text: row.sentiment ? `Sentiment: ${row.sentiment}` : "In progress" }]
         }));
         setAllCallLogs(formattedLogs.reverse());
         setIsLoading(false);
