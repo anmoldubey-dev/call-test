@@ -60,6 +60,33 @@ const AdminDashboard = () => {
   const [smartQuery, setSmartQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [aiIntent, setAiIntent] = useState(null);
+  // Transcript expand state: { [logId]: { open, loading, items } }
+  const [transcriptState, setTranscriptState] = useState({});
+
+  const toggleTranscript = async (logId) => {
+    setTranscriptState(prev => {
+      const cur = prev[logId];
+      if (cur?.open) return { ...prev, [logId]: { ...cur, open: false } };
+      if (cur?.items) return { ...prev, [logId]: { ...cur, open: true } };
+      return { ...prev, [logId]: { open: true, loading: true, items: null } };
+    });
+    // Fetch only if not yet loaded
+    setTranscriptState(prev => {
+      if (prev[logId]?.items !== undefined) return prev; // already fetched
+      return prev; // will fetch below
+    });
+    const already = transcriptState[logId];
+    if (already?.items !== undefined) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/calls/${logId}/transcript`, {
+        headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` },
+      });
+      const items = await res.json();
+      setTranscriptState(prev => ({ ...prev, [logId]: { open: true, loading: false, items: Array.isArray(items) ? items : [] } }));
+    } catch {
+      setTranscriptState(prev => ({ ...prev, [logId]: { open: true, loading: false, items: [] } }));
+    }
+  };
 
   // ---------------------------------------------------------------
   // SECTION: AI SEARCH LOGIC (NL2SQL)
@@ -558,23 +585,49 @@ const AdminDashboard = () => {
                   ) : filteredLogs.length === 0 ? (
                     <div className="text-gray-500 italic text-center mt-10">No logs match the selected filters.</div>
                   ) : (
-                    filteredLogs.map((log, index) => (
-                      <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-all">
-                        <div className="flex justify-between items-start border-b border-white/10 pb-2 mb-2">
-                          <div>
-                            <p className="font-semibold text-white text-sm">{log.caller}</p>
-                            <p className="text-xs text-gray-400">{log.startTime} | Agent: {log.agent} | {log.team}</p>
+                    filteredLogs.map((log, index) => {
+                      const ts = transcriptState[log.id] || {};
+                      const speakerColor = { agent: '#818cf8', caller: '#22c55e', system: '#5a7a9a' };
+                      return (
+                        <div key={index} className="bg-white/5 border border-white/10 rounded-xl p-4 hover:border-white/20 transition-all">
+                          <div className="flex justify-between items-start border-b border-white/10 pb-2 mb-2">
+                            <div>
+                              <p className="font-semibold text-white text-sm">{log.caller}</p>
+                              <p className="text-xs text-gray-400">{log.startTime} | Agent: {log.agent} | {log.team}</p>
+                            </div>
+                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${log.statusColor}`}>{log.status}</span>
                           </div>
-                          <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${log.statusColor}`}>{log.status}</span>
+                          {log.queries.map((q, i) => (
+                            <div key={i} className="text-sm mt-1">
+                              <span className="text-[#8B5CF6] font-bold mr-2">{q.type}:</span>
+                              {q.text}
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => toggleTranscript(log.id)}
+                            className="mt-2 text-[10px] text-[#818cf8] hover:text-[#a5b4fc] flex items-center gap-1 transition-colors"
+                          >
+                            {ts.open ? '▲ Hide Transcript' : '▼ View Transcript'}
+                          </button>
+                          {ts.open && (
+                            <div className="mt-2 border-t border-white/10 pt-2 flex flex-col gap-1 max-h-40 overflow-y-auto">
+                              {ts.loading ? (
+                                <p className="text-xs text-gray-500 animate-pulse">Loading…</p>
+                              ) : !ts.items || ts.items.length === 0 ? (
+                                <p className="text-xs text-gray-500">No transcript available.</p>
+                              ) : ts.items.map((line, li) => (
+                                <div key={li} className="flex gap-2 text-xs">
+                                  <span style={{ color: speakerColor[line.speaker] || '#5a7a9a', minWidth: 36, fontWeight: 600 }}>
+                                    {line.speaker}
+                                  </span>
+                                  <span className="text-gray-300">{line.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {log.queries.map((q, i) => (
-                          <div key={i} className="text-sm mt-1">
-                            <span className="text-[#8B5CF6] font-bold mr-2">{q.type}:</span>
-                            {q.text}
-                          </div>
-                        ))}
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
