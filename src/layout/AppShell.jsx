@@ -23,10 +23,62 @@
 // ---------------------------------------------------------------
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react'
+import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant } from '@livekit/components-react'
 import Sidebar from './Sidebar.jsx'
 import GlobalStyles from '../components/dashboard/GlobalStyles.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
+
+// Must be rendered inside <LiveKitRoom> so useLocalParticipant works
+function ActiveCallCard({ agentName, onEnd }) {
+  const { localParticipant } = useLocalParticipant();
+  const [muted, setMuted] = useState(false);
+
+  const toggleMute = useCallback(() => {
+    if (!localParticipant) return;
+    const next = !muted;
+    localParticipant.setMicrophoneEnabled(!next);
+    setMuted(next);
+  }, [localParticipant, muted]);
+
+  return (
+    <div style={{
+      background: '#0e1419', border: '1px solid rgba(34,197,94,0.3)',
+      borderRadius: '20px', padding: '36px 32px', width: '320px',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
+    }}>
+      <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'absolute', width: '80px', height: '80px', borderRadius: '50%', border: '2px solid rgba(34,197,94,0.4)', animation: 'dcPing 1.5s ease-out infinite' }} />
+        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg,#16a34a,#22c55e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
+          {muted ? '🔇' : '📞'}
+        </div>
+      </div>
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ color: '#22c55e', fontSize: '10px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>Connected</p>
+        <p style={{ color: '#e8f0f8', fontSize: '16px', fontWeight: 600, margin: 0 }}>{agentName || 'Agent'}</p>
+        {muted && <p style={{ color: '#f87171', fontSize: '11px', marginTop: '6px' }}>Microphone muted</p>}
+      </div>
+      <div style={{ display: 'flex', gap: '12px' }}>
+        <button
+          onClick={toggleMute}
+          style={{
+            padding: '13px 20px', borderRadius: '50px', fontSize: '13px', fontWeight: 700,
+            cursor: 'pointer', border: muted ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(255,255,255,0.15)',
+            background: muted ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.07)',
+            color: muted ? '#f87171' : '#e8f0f8',
+          }}
+        >
+          {muted ? '🎙 Unmute' : '🔇 Mute'}
+        </button>
+        <button
+          onClick={onEnd}
+          style={{ padding: '13px 20px', borderRadius: '50px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', border: 'none', background: '#ef4444', color: '#fff', boxShadow: '0 4px 14px rgba(239,68,68,0.35)' }}
+        >
+          📵 End
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // [Direct Call] Backend base URL — derived from WS URL when VITE_API_URL is empty
 const _WS_BASE  = import.meta.env.VITE_WS_URL  || 'wss://anteriorly-digestional-laquita.ngrok-free.dev';
@@ -189,29 +241,10 @@ export default function AppShell() {
               video={false}
             >
               <RoomAudioRenderer />
-              {/* [Direct Call] Minimal active call UI */}
-              <div style={{
-                background: '#0e1419', border: '1px solid rgba(34,197,94,0.3)',
-                borderRadius: '20px', padding: '36px 32px', width: '320px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px',
-              }}>
-                <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ position: 'absolute', width: '80px', height: '80px', borderRadius: '50%', border: '2px solid rgba(34,197,94,0.4)', animation: 'dcPing 1.5s ease-out infinite' }} />
-                  <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg,#16a34a,#22c55e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
-                    📞
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ color: '#22c55e', fontSize: '10px', fontWeight: 700, letterSpacing: '0.15em', textTransform: 'uppercase', margin: '0 0 8px' }}>Connected</p>
-                  <p style={{ color: '#e8f0f8', fontSize: '16px', fontWeight: 600, margin: 0 }}>{activeDirectCall.agent_name || 'Agent'}</p>
-                </div>
-                <button
-                  onClick={() => setActiveDirectCall(null)}
-                  style={{ padding: '13px 32px', borderRadius: '50px', fontSize: '13px', fontWeight: 700, cursor: 'pointer', border: 'none', background: '#ef4444', color: '#fff', boxShadow: '0 4px 14px rgba(239,68,68,0.35)' }}
-                >
-                  📵 End Call
-                </button>
-              </div>
+              <ActiveCallCard
+                agentName={activeDirectCall.agent_name}
+                onEnd={() => setActiveDirectCall(null)}
+              />
             </LiveKitRoom>
           </div>
         )}
