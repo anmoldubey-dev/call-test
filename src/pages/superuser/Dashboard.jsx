@@ -80,7 +80,8 @@ export function Dashboard() {
       .then(([realtimeData, statsData]) => {
         setDbAgents(realtimeData.agents || []);
         setDbSankey(realtimeData.sankey || { nodes: [], links: [] });
-        if (statsData) setDbStats(statsData);
+        if (realtimeData.allTimeKpi) setDbStats(realtimeData.allTimeKpi);
+        else if (statsData) setDbStats(statsData);
         if (!isSilent) setLoading(false);
       })
       .catch((err) => {
