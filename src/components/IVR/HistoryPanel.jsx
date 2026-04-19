@@ -171,6 +171,7 @@ export default function HistoryPanel() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [deleted, setDeleted] = useState(new Set());
   const [transcript, setTranscript] = useState(null);
 
@@ -213,10 +214,11 @@ export default function HistoryPanel() {
     } catch (_) { }
   };
 
-  // Logic Branch -> filtering: Computes visibility based on search criteria and local deletion state
+  // Logic Branch -> filtering: Computes visibility based on search/date criteria and local deletion state
   const filtered = history.filter(c =>
     !deleted.has(c.id) &&
-    (!search || c.caller_number?.includes(search) || c.department?.toLowerCase().includes(search.toLowerCase()))
+    (!search || c.caller_number?.includes(search) || c.department?.toLowerCase().includes(search.toLowerCase())) &&
+    (!dateFilter || (c.created_at || '').slice(0, 10) === dateFilter)
   );
 
   // ---------------------------------------------------------------
@@ -231,7 +233,7 @@ export default function HistoryPanel() {
           <div style={{ fontSize: '13px', fontWeight: 600, color: '#e8f0f8' }}>Call History</div>
           <div style={{ fontSize: '10px', color: '#5a7a9a', marginTop: '2px' }}>{filtered.length} records</div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ position: 'relative' }}>
             <Search size={12} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#5a7a9a' }} />
             <input
@@ -244,6 +246,21 @@ export default function HistoryPanel() {
               }}
             />
           </div>
+          <input
+            type="date"
+            value={dateFilter}
+            onChange={e => setDateFilter(e.target.value)}
+            style={{
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '8px', padding: '6px 10px', color: dateFilter ? '#e8f0f8' : '#5a7a9a',
+              fontSize: '11px', outline: 'none', colorScheme: 'dark', cursor: 'pointer',
+            }}
+          />
+          {dateFilter && (
+            <button onClick={() => setDateFilter('')} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '6px 8px', color: '#f87171', cursor: 'pointer', fontSize: '10px' }}>
+              ✕
+            </button>
+          )}
           <button onClick={() => load()} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '6px 10px', color: '#8899aa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
             <RefreshCw size={11} /> Refresh
           </button>
