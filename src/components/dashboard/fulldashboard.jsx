@@ -453,39 +453,22 @@ function KPICard({ title, value, unit, color }) {
   );
 }
 
-const _STATS_URL = (import.meta.env.VITE_API_URL || '') + '/api/stats';
+export function Infographics({ agents = [], stats = null }) {
+  const totalCalls = agents.reduce((s, a) => s + (a.callsHandled || 0), 0);
+  const resolved   = stats?.completedCalls ?? totalCalls;
+  const escalated  = agents.reduce((s, a) => s + (a.escalations || 0), 0);
 
-export function Infographics() {
-  const [stats, setStats] = useState(null);
-
-  useEffect(() => {
-   fetch(_STATS_URL, {
-  headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` }
-})
-  .then(res => res.json())
-  .then(data => setStats(data))
-  .catch(err => console.error("Stats fetch error:", err));
-  }, []);
-
-  if (!stats) {
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        {[...Array(7)].map((_, i) => (
-          <div key={i} className="h-20 bg-slate-800/40 animate-pulse rounded-xl border border-slate-700/50"></div>
-        ))}
-      </div>
-    );
-  }
+  const cards = [
+    { title: "Total Calls", value: totalCalls, color: "indigo" },
+    { title: "Resolved",    value: resolved,   color: "green"  },
+    { title: "Escalated",   value: escalated,  color: "red"    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-      <KPICard title="Total Traffic"   value={stats.totalTraffic}  color="indigo" /> 
-      <KPICard title="Active Streams"  value={stats.activeStreams} color="amber"  /> 
-      <KPICard title="Global CSAT"     value={stats.globalCsat}    unit="/5"  color="green"  /> 
-      <KPICard title="Avg Latency"     value={stats.avgLatency}    unit="ms"  color="green"  /> 
-      <KPICard title="Escalation Rate" value={stats.escalationRate} color="red"    /> 
-      <KPICard title="Hardware Load"   value={stats.hardwareLoad}   color="indigo" /> 
-      <KPICard title="Avg Sentiment"   value={stats.avgSentiment}   unit="/5"  color="green"  /> 
+    <div className="grid grid-cols-3 gap-6">
+      {cards.map(({ title, value, color }) => (
+        <KPICard key={title} title={title} value={value} color={color} />
+      ))}
     </div>
   );
 }
