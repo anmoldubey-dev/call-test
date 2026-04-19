@@ -289,7 +289,7 @@ const AppRoutes = () => {
         path="/agent"
         element={
           <ProtectedRoute role="agent">
-            <AgentPage />
+            <Navigate to="/agent/dashboard" replace />
           </ProtectedRoute>
         }
       />

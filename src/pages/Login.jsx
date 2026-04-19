@@ -214,7 +214,7 @@ const Login = () => {
   const redirectByRole = (user) => {
     if (user?.role === 'admin')     return navigate('/admin',     { replace: true })
     if (user?.role === 'superuser') return navigate('/superuser', { replace: true })
-    if (user?.role === 'agent')     return navigate('/agent',     { replace: true })
+    if (user?.role === 'agent')     return navigate('/agent/dashboard', { replace: true })
     return navigate('/welcome', { replace: true })  // Default -> user role
   }
 
