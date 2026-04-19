@@ -58,6 +58,7 @@ export function Dashboard() {
   const [selectedShift, setSelectedShift] = useState("All");
   const [dbAgents, setDbAgents] = useState([]);
   const [dbSankey, setDbSankey] = useState({ nodes: [], links: [] });
+  const [dbStats, setDbStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -69,21 +70,22 @@ export function Dashboard() {
   const fetchData = useCallback((isSilent = false) => {
     if (!isSilent) setLoading(true);
 
-    fetch(`${API_BASE}/api/superuser/realtime`, {
-      headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` },
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error(`Realtime API failed: ${res.status}`);
-        return res.json();
-      })
-      .then((data) => {
-        setDbAgents(data.agents || []);
-        setDbSankey(data.sankey || { nodes: [], links: [] });
+    const token = sessionStorage.getItem("token");
+    const headers = { Authorization: `Bearer ${token}` };
+
+    Promise.all([
+      fetch(`${API_BASE}/api/superuser/realtime`, { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(`${API_BASE}/api/stats`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+    ])
+      .then(([realtimeData, statsData]) => {
+        setDbAgents(realtimeData.agents || []);
+        setDbSankey(realtimeData.sankey || { nodes: [], links: [] });
+        if (statsData) setDbStats(statsData);
         if (!isSilent) setLoading(false);
       })
       .catch((err) => {
         console.error("❌ API Error:", err);
-        setError(err.message);
+        setError(String(err));
         if (!isSilent) setLoading(false);
       });
   }, []);
@@ -214,7 +216,7 @@ export function Dashboard() {
               <RiskPanel agents={dbAgents} onAgentClick={handleAgentClick} />
             </div>
           </div>
-          <KPIPanel agents={dbAgents} />
+          <KPIPanel agents={dbAgents} stats={dbStats} />
         </main>
 
         <AIChatBox />

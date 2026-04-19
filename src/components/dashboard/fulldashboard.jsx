@@ -387,11 +387,13 @@ function KPICard({ title, value, unit, color }) {
   );
 }
 
+const _STATS_URL = (import.meta.env.VITE_API_URL || '') + '/api/stats';
+
 export function Infographics() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
-   fetch("/api/stats", {
+   fetch(_STATS_URL, {
   headers: { Authorization: `Bearer ${sessionStorage.getItem("token")}` }
 })
   .then(res => res.json())
@@ -426,7 +428,7 @@ export function Infographics() {
 // SECTION: 4. SYSTEM HEALTH PANEL
 // ===============================================================
 
-export function KPIPanel({ agents = [] }) {
+export function KPIPanel({ agents = [], stats = null }) {
   const criticalAgents = agents
     .filter(a => {
       const riskLevel = (a.riskLevel || a.risklevel || "low").toLowerCase();
@@ -435,8 +437,8 @@ export function KPIPanel({ agents = [] }) {
     .slice(0, 3);
 
   const avgLatency  = agents.length ? Math.round(agents.reduce((s, a) => s + (a.avgLatency || 0), 0) / agents.length) : 0;
-  const avgCsat     = agents.length ? (agents.reduce((s, a) => s + (a.csat || 0), 0) / agents.length).toFixed(2) : 0;
-  const totalCalls  = agents.reduce((s, a) => s + (a.callsHandled || 0), 0);
+  const avgCsat     = stats ? Number(stats.globalCsat).toFixed(2) : (agents.length ? (agents.reduce((s, a) => s + (a.csat || 0), 0) / agents.length).toFixed(2) : 0);
+  const totalCalls  = stats ? (stats.totalTraffic ?? stats.completedCalls ?? 0) : agents.reduce((s, a) => s + (a.callsHandled || 0), 0);
   const avgWorkload = agents.length ? Math.round(agents.reduce((s, a) => s + (a.workload || 0), 0) / agents.length) : 0;
 
   return (
