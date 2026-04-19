@@ -347,7 +347,7 @@ export default function SuperuserPage() {
 
           {activeView === "history" && (
             <div style={{ background: "var(--bg2)", borderRadius: '16px', padding: '24px', border: '1px solid var(--bdr)' }}>
-              <HistoryPanel showDateFilter={false} />
+              <HistoryPanel />
             </div>
           )}
 
