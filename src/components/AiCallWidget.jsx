@@ -292,11 +292,24 @@ export default function App() {
     wsRef.current = sock
 
     sock.onopen = () => {
+      // Read translation layer config saved by AiAgentsPage Translation tab
+      let translationLayer = null
+      try {
+        const raw = localStorage.getItem('translation_layer_config')
+        if (raw) {
+          const cfg = JSON.parse(raw)
+          if (cfg.enabled && cfg.from_lang && cfg.to_lang && cfg.from_lang !== cfg.to_lang) {
+            translationLayer = cfg
+          }
+        }
+      } catch {}
+
       sock.send(JSON.stringify({
-        lang:  callLang,
-        llm:   callLlm  || llm,
-        voice: callVoice,
-        phone: 'web-test',
+        lang:              callLang,
+        llm:               callLlm  || llm,
+        voice:             callVoice,
+        phone:             'web-test',
+        translation_layer: translationLayer,
       }))
 
       // Background room audio
