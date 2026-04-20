@@ -219,6 +219,16 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         try { tlConfigRef.current = JSON.parse(new TextDecoder().decode(payload)); } catch (_) {}
         return;
       }
+      if (topic === 'tl_user_audio') {
+        // Play translated user voice (WAV bytes sent by user's translation layer)
+        try {
+          const url = URL.createObjectURL(new Blob([payload], { type: 'audio/wav' }));
+          const audio = new Audio(url);
+          audio.onended = () => URL.revokeObjectURL(url);
+          audio.play().catch(() => URL.revokeObjectURL(url));
+        } catch (_) {}
+        return;
+      }
       if (topic !== 'transcript') return;
       try {
         const { text } = JSON.parse(new TextDecoder().decode(payload));

@@ -214,7 +214,7 @@ function TranslationTab() {
           <div style={{ fontSize: 22, color: 'var(--txt2)', paddingTop: 18 }}>⇄</div>
 
           <div>
-            <div style={{ fontSize: 11, color: 'var(--txt2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Agent language (AI thinks in)</div>
+            <div style={{ fontSize: 11, color: 'var(--txt2)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Agent language (they speak)</div>
             {sel(cfg.to_lang, v => update('to_lang', v))}
           </div>
         </div>
@@ -261,11 +261,11 @@ function TranslationTab() {
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--bdr)', borderRadius: 14, padding: '20px 24px' }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>How the Translation Layer Works</div>
         {[
-          ['1', 'You speak',          `Your voice is captured and transcribed in ${fromLabel}`],
-          ['2', 'Translate → agent',  `Your words are silently translated to ${toLabel} before reaching the AI`],
-          ['3', 'AI responds',        `The AI thinks and responds in ${toLabel}`],
-          ['4', 'Translate → you',    `The AI response is translated back to ${fromLabel}`],
-          ['5', 'You hear',           `Translated response is spoken in ${fromLabel} using your chosen voice`],
+          ['1', 'You speak',          `Your mic is captured and transcribed in ${fromLabel}`],
+          ['2', 'Translate → agent',  `Translated to ${toLabel} — the agent hears your voice in their language`],
+          ['3', 'Agent responds',     `The human agent speaks in ${toLabel}`],
+          ['4', 'Translate → you',    `Agent speech is translated back to ${fromLabel}`],
+          ['5', 'You hear',           `Translated response is played in ${fromLabel} — you never hear the raw ${toLabel}`],
         ].map(([n, title, desc]) => (
           <div key={n} style={{ display: 'flex', gap: 14, marginBottom: 12 }}>
             <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'rgba(124,58,237,0.12)', color: 'var(--pur2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0, border: '1px solid var(--bdr2)' }}>{n}</div>

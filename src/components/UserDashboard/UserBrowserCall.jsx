@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LiveKitRoom, RoomAudioRenderer, useRemoteParticipants, useDataChannel, useRoomContext } from '@livekit/components-react';
-import { LocalAudioTrack, Track } from 'livekit-client';
 import { Phone, PhoneOff, Loader2, UserCheck, Mic, MicOff } from 'lucide-react';
 import { DEPARTMENTS } from '../../constants/departments.js';
 
@@ -63,12 +62,9 @@ const _TL_SR_LANG = {
 
 function TranslationLayerInner({ config }) {
     const room = useRoomContext();
-    const publishedTrackRef = useRef(null);
-    const audioCtxRef = useRef(null);
-    const destRef = useRef(null);
     const recRef = useRef(null);
 
-    // Agent → User: receive agent transcript → translate → TTS → play locally
+    // Agent → User: receive agent transcript text → translate+TTS → play locally
     useDataChannel('tl_agent_text', useCallback(async (msg) => {
         if (!config?.enabled) return;
         try {
@@ -82,95 +78,63 @@ function TranslationLayerInner({ config }) {
             const { audio_b64 } = await res.json();
             if (!audio_b64) return;
             const wav = Uint8Array.from(atob(audio_b64), c => c.charCodeAt(0));
-            const blob = new Blob([wav], { type: 'audio/wav' });
-            const url = URL.createObjectURL(blob);
+            const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
             const audio = new Audio(url);
             audio.onended = () => URL.revokeObjectURL(url);
             audio.play().catch(() => URL.revokeObjectURL(url));
         } catch (e) { console.warn('[TL] agent relay error:', e); }
     }, [config]));
 
-    // Mute raw remote audio so user only hears translated version
+    // Suppress raw remote audio — user only hears translated TTS
     useEffect(() => {
         if (!config?.enabled) return;
         const mute = () => document.querySelectorAll('audio[autoplay]').forEach(el => { el.volume = 0; });
         mute();
         const iv = setInterval(mute, 800);
-        return () => {
-            clearInterval(iv);
-            document.querySelectorAll('audio[autoplay]').forEach(el => { el.volume = 1; });
-        };
+        return () => { clearInterval(iv); document.querySelectorAll('audio[autoplay]').forEach(el => { el.volume = 1; }); };
     }, [config?.enabled]);
 
-    // User → Agent: mic → SpeechRecognition → translate → TTS → publish custom LK audio track
+    // User → Agent: mute mic, SpeechRecognition → translate+TTS → send WAV via data channel
     useEffect(() => {
         if (!config?.enabled || !room) return;
 
         room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
 
-        // Announce TL to agent
+        // Announce TL config to agent so they know to publish transcripts
         try {
             const msg = new TextEncoder().encode(JSON.stringify({ type: 'tl_config', from_lang: config.from_lang, to_lang: config.to_lang }));
             room.localParticipant.publishData(msg, { reliable: true, topic: 'tl_config' });
         } catch (_) {}
 
-        // Persistent AudioContext → MediaStream destination (keeps the published track alive)
-        const audioCtx = new AudioContext({ sampleRate: 22050 });
-        const dest = audioCtx.createMediaStreamDestination();
-        audioCtxRef.current = audioCtx;
-        destRef.current = dest;
-        // Silent carrier so LiveKit doesn't auto-mute the track
-        const silence = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        gain.gain.value = 0;
-        silence.connect(gain);
-        gain.connect(dest);
-        silence.start();
-
-        const lkTrack = new LocalAudioTrack(dest.stream.getAudioTracks()[0]);
-        room.localParticipant.publishTrack(lkTrack, { name: 'tl-voice', source: Track.Source.Microphone })
-            .then(pub => { publishedTrackRef.current = pub?.track || lkTrack; })
-            .catch(e => console.warn('[TL] publish track error:', e));
-
-        // SpeechRecognition: user speech → translate → TTS → feed into published track
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (SR) {
-            const rec = new SR();
-            recRef.current = rec;
-            rec.continuous = true;
-            rec.interimResults = false;
-            rec.lang = _TL_SR_LANG[config.from_lang] || 'en-IN';
-            rec.onresult = async (event) => {
-                const text = event.results[event.results.length - 1][0].transcript.trim();
-                if (!text) return;
-                try {
-                    const res = await fetch(`${_API}/api/translation/relay`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ text, from_lang: config.from_lang, to_lang: config.to_lang, voice_gender: config.voice_gender || 'female' }),
-                    });
-                    const { audio_b64 } = await res.json();
-                    if (!audio_b64 || !audioCtxRef.current || !destRef.current) return;
-                    const wav = Uint8Array.from(atob(audio_b64), c => c.charCodeAt(0));
-                    const decoded = await audioCtxRef.current.decodeAudioData(wav.buffer.slice(0));
-                    const src = audioCtxRef.current.createBufferSource();
-                    src.buffer = decoded;
-                    src.connect(destRef.current);
-                    src.start();
-                } catch (e) { console.warn('[TL] user relay error:', e); }
-            };
-            rec.onend = () => { try { rec.start(); } catch (_) {} };
-            try { rec.start(); } catch (_) {}
-        }
+        if (!SR) return;
+        const rec = new SR();
+        recRef.current = rec;
+        rec.continuous = true;
+        rec.interimResults = false;
+        rec.lang = _TL_SR_LANG[config.from_lang] || 'en-IN';
+        rec.onresult = async (event) => {
+            const text = event.results[event.results.length - 1][0].transcript.trim();
+            if (!text) return;
+            try {
+                const res = await fetch(`${_API}/api/translation/relay`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, from_lang: config.from_lang, to_lang: config.to_lang, voice_gender: config.voice_gender || 'female' }),
+                });
+                const { audio_b64 } = await res.json();
+                if (!audio_b64) return;
+                // Send translated WAV bytes to agent via LiveKit data channel
+                const wav = Uint8Array.from(atob(audio_b64), c => c.charCodeAt(0));
+                room.localParticipant.publishData(wav, { reliable: true, topic: 'tl_user_audio' });
+            } catch (e) { console.warn('[TL] user relay error:', e); }
+        };
+        rec.onend = () => { try { rec.start(); } catch (_) {} };
+        try { rec.start(); } catch (_) {}
 
         return () => {
-            if (recRef.current) { recRef.current.onend = null; recRef.current.abort(); recRef.current = null; }
+            rec.onend = null; rec.abort(); recRef.current = null;
             room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
-            if (publishedTrackRef.current) {
-                room.localParticipant.unpublishTrack(publishedTrackRef.current).catch(() => {});
-                publishedTrackRef.current = null;
-            }
-            if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; destRef.current = null; }
         };
     }, [config?.enabled, room]); // eslint-disable-line react-hooks/exhaustive-deps
 
