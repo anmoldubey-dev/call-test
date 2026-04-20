@@ -57,6 +57,7 @@ export function Dashboard() {
   const [selectedChannel, setSelectedChannel] = useState("All");
   const [selectedShift, setSelectedShift] = useState("All");
   const [dbAgents, setDbAgents] = useState([]);
+  const [dbBubbleAgents, setDbBubbleAgents] = useState([]);
   const [dbSankey, setDbSankey] = useState({ nodes: [], links: [] });
   const [dbStats, setDbStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +80,8 @@ export function Dashboard() {
     ])
       .then(([realtimeData, statsData]) => {
         setDbAgents(realtimeData.agents || []);
-        setDbSankey(realtimeData.sankey || { nodes: [], links: [] });
+        setDbBubbleAgents(realtimeData.bubbleAgents || []);
+        setDbSankey(realtimeData.allTimeSankey || realtimeData.sankey || { nodes: [], links: [] });
         if (realtimeData.allTimeKpi) setDbStats(realtimeData.allTimeKpi);
         else if (statsData) setDbStats(statsData);
         if (!isSilent) setLoading(false);
@@ -210,7 +212,7 @@ export function Dashboard() {
           <Infographics agents={dbAgents} stats={dbStats} />
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <BubbleChart agents={dbAgents} onAgentClick={handleAgentClick} />
+              <BubbleChart agents={dbBubbleAgents} onAgentClick={handleAgentClick} />
               <SankeyChart data={dbSankey} />
             </div>
             <div>
