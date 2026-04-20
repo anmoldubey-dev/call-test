@@ -101,6 +101,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const roomRef = useRef(null);
   const connectedRef = useRef(false);
   const recognitionRef = useRef(null);
+  const tlConfigRef = useRef(null); // translation layer config sent by caller
 
   const [connected, setConnected] = useState(false);
   const [participants, setParticipants] = useState([]);
@@ -214,6 +215,10 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
 
     // Sub-process -> DataReceived Handler: Ingests real-time caller transcription from data channel
     room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+      if (topic === 'tl_config') {
+        try { tlConfigRef.current = JSON.parse(new TextDecoder().decode(payload)); } catch (_) {}
+        return;
+      }
       if (topic !== 'transcript') return;
       try {
         const { text } = JSON.parse(new TextDecoder().decode(payload));
@@ -329,6 +334,13 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
             setTranscript(prev => [...prev, { speaker: 'agent', text }]);
             onNewCallerTextRef.current?.(text);
             _saveTranscript(livekitSession?.room, 'agent', text);
+            // If caller has translation layer active, send agent transcript so user hears translated TTS
+            if (tlConfigRef.current && roomRef.current?.localParticipant) {
+              try {
+                const payload = new TextEncoder().encode(JSON.stringify({ text }));
+                roomRef.current.localParticipant.publishData(payload, { reliable: true, topic: 'tl_agent_text' });
+              } catch (_) {}
+            }
           }
         } else {
           setInterimText(text);
