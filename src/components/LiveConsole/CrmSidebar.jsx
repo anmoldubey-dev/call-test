@@ -70,7 +70,7 @@ export default function CrmSidebar({ isLoading, customer }) {
         const endpoint = api.defaults?.baseURL?.endsWith('/api') ? "/ai-chat" : "/api/ai-chat";
 
         const response = await api.post(endpoint, { // Internal Call -> POST request safely bypassing CORS
-          phone: customer.phone,
+          phone: customer.email || customer.phone || customer.name,
           question: query
         });
 

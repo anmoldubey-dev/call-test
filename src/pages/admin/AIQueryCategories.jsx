@@ -22,7 +22,7 @@ import ReactECharts from 'echarts-for-react';
 // ||
 // ===========================================================================
 
-const AIQueryCategories = ({ filteredLogs, onChartClick, setActiveModal, getHexColor, smartQuery, setSmartQuery, handleSmartSearch, isSearching }) => {
+const AIQueryCategories = ({ filteredLogs, onChartClick, setActiveModal, getHexColor, smartQuery, setSmartQuery, handleSmartSearch, isSearching, smartSearchResponse }) => {
 
   // ---------------------------------------------------------------
   // SECTION: COMPONENT STATE & INITIALIZATION
@@ -125,6 +125,11 @@ const AIQueryCategories = ({ filteredLogs, onChartClick, setActiveModal, getHexC
             {isSearching ? 'Analyzing...' : 'Search'}
           </button>
         </form>
+        {smartSearchResponse && (
+          <div className="px-3 py-2 mt-2 mx-1 rounded-lg bg-[#10B981]/10 border border-[#10B981]/20 text-[#D1D5DB] text-sm leading-relaxed">
+            <span className="font-semibold text-[#10B981]">AI Answer:</span> {smartSearchResponse}
+          </div>
+        )}
       </div>
 
       <div className="glass-card-hover rounded-2xl p-5" style={{ height: '300px' }}>

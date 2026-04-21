@@ -77,7 +77,7 @@ export default function AdminPage() {
   const navigate = useNavigate();
 
   // Initialization -> Dashboard state buffers for telemetry, registry, and inputs
-  const [stats, setStats] = useState({ totalUsers: 0, totalCalls: 0, creditsUsed: 0 });
+  const [stats, setStats] = useState({ total_users: 0, total_calls: 0 });
   const [users, setUsers] = useState([]);
   const [creditInputs, setCreditInputs] = useState({});
   const [loading, setLoading] = useState(true);
@@ -151,7 +151,7 @@ export default function AdminPage() {
           </div>
           <div style={{ display: "flex", gap: 10 }}><Btn onClick={() => navigate("/admin/dashboard")} style={{ gap: 10 }}>Admin Dashboard →</Btn><Btn variant="secondary" onClick={handleLogout} style={{ color: "var(--red)", borderColor: "rgba(255,71,87,0.3)" }}>Logout</Btn></div>
         </div>
-        <div style={{ display: "flex", gap: 16, marginBottom: 36 }}><StatCard label="Total Users" value={stats.totalUsers} icon="◉" /><StatCard label="Total Calls" value={stats.totalCalls} icon="↗" /><StatCard label="Credits Used" value={stats.creditsUsed} icon="◎" /></div>
+        <div style={{ display: "flex", gap: 16, marginBottom: 36 }}><StatCard label="Total Users" value={stats.total_users} icon="◉" /><StatCard label="Total Calls" value={stats.total_calls} icon="↗" /></div>
         <FCard style={{ marginBottom: 28 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}><SecTitle>◉ User Management</SecTitle><Btn variant="secondary" style={{ fontSize: 12, padding: "8px 16px" }}>+ Add User</Btn></div>
           <div style={{ display: "grid", gridTemplateColumns: "2fr 2fr 1fr 1fr 2fr", gap: 12, padding: "8px 14px", marginBottom: 4 }}>{["Name", "Email", "Role", "Status", "Actions"].map((h) => (<span key={h} style={{ fontSize: 11, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase", color: "var(--lbl)" }}>{h}</span>))}</div>
