@@ -41,6 +41,12 @@ import api from '../../services/api.js';
 const API_BASE = ((import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')) + '/api';
 
 const DEPARTMENTS = ['General', 'Sales', 'Support', 'Billing', 'Technical'];
+const TL_SR_LANG = {
+  en: 'en-IN', hi: 'hi-IN', mr: 'mr-IN', ta: 'ta-IN', te: 'te-IN',
+  ml: 'ml-IN', bn: 'bn-IN', gu: 'gu-IN', kn: 'kn-IN', pa: 'pa-IN',
+  ur: 'ur-PK', fr: 'fr-FR', de: 'de-DE', es: 'es-ES', ar: 'ar-SA',
+  zh: 'zh-CN', ru: 'ru-RU', ne: 'ne-NP',
+};
 
 async function _saveTranscript(sessionId, speaker, text) {
   if (!sessionId || !text?.trim()) return;
@@ -216,7 +222,13 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
     // Sub-process -> DataReceived Handler: Ingests real-time caller transcription from data channel
     room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
       if (topic === 'tl_config') {
-        try { tlConfigRef.current = JSON.parse(new TextDecoder().decode(payload)); } catch (_) {}
+        try {
+          tlConfigRef.current = JSON.parse(new TextDecoder().decode(payload));
+          const toLang = tlConfigRef.current?.to_lang;
+          if (recognitionRef.current && toLang) {
+            recognitionRef.current.lang = TL_SR_LANG[toLang] || 'en-IN';
+          }
+        } catch (_) {}
         return;
       }
       if (topic === 'tl_user_audio') {
@@ -321,7 +333,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       const recognition = new SR();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = 'en-IN';
+      recognition.lang = TL_SR_LANG[tlConfigRef.current?.to_lang] || 'en-IN';
 
       let active = true;
       let fatalError = false;
