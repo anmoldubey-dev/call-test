@@ -60,7 +60,7 @@ const _TL_SR_LANG = {
     zh: 'zh-CN', ru: 'ru-RU', ne: 'ne-NP',
 };
 
-const _TL_AUDIO_CHUNK_BYTES = 12000;
+const _TL_AUDIO_CHUNK_BYTES = 6000;
 
 function _u8ToB64(u8) {
     let s = '';

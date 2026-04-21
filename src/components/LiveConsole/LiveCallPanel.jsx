@@ -243,13 +243,25 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
 
           if (parsed?.kind === 'chunk' && parsed.id && Number.isInteger(parsed.index) && Number.isInteger(parsed.total)) {
             const slot = tlAudioChunksRef.current.get(parsed.id) || { total: parsed.total, parts: [] };
-            slot.parts[parsed.index] = parsed.data_b64 || '';
+            let partBytes = null;
+            try {
+              partBytes = Uint8Array.from(atob(parsed.data_b64 || ''), c => c.charCodeAt(0));
+            } catch (_) {
+              partBytes = null;
+            }
+            if (!partBytes?.length) return;
+            slot.parts[parsed.index] = partBytes;
             tlAudioChunksRef.current.set(parsed.id, slot);
             const ready = slot.parts.filter(Boolean).length === slot.total;
             if (!ready) return;
-            const b64 = slot.parts.join('');
             tlAudioChunksRef.current.delete(parsed.id);
-            const wav = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const totalLen = slot.parts.reduce((n, p) => n + p.length, 0);
+            const wav = new Uint8Array(totalLen);
+            let off = 0;
+            for (const p of slot.parts) {
+              wav.set(p, off);
+              off += p.length;
+            }
             const url = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
             const audio = new Audio(url);
             audio.onended = () => URL.revokeObjectURL(url);
