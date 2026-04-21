@@ -31,32 +31,22 @@ import { NavLink } from 'react-router-dom'
 
 // NAV -> Full sidebar navigation item definitions
 const NAV = [
-  { id: 'home',           label: 'Home',                    icon: '⌂', to: '/user' },
-  { id: 'aiAgents',      label: 'AI Agents',               icon: '🤖', badge: 'new', to: '/user/ai-agents' },
-  { id: 'analytics',      label: 'Analytics',               icon: '◈', to: '/user/analytics' },
-  { id: 'personas',       label: 'Personas',                icon: '◉', to: '/user/personas' },
-  { id: 'callLogs',       label: 'Call Logs',               icon: '≡', to: '/user/call-logs' },
-  { id: 'sendCall',       label: 'Send Call',               icon: '↗', to: '/user/send-call' },
-  { id: 'pathways',       label: 'Conversational Pathways', icon: '⧖', to: '/user/pathways' },
-  { id: 'batches',        label: 'Batches',                 icon: '⬡', to: '/user/batches' },
-  { id: 'tools',          label: 'Tools',                   icon: '⚙', badge: 'updated', to: '/user/tools' },
-  { id: 'automations',    label: 'Automations',             icon: '⟳', badge: 'new',     to: '/user/automations' },
-  { id: 'billing',        label: 'Billing & Credits',       icon: '◎', to: '/user/billing' },
-  { id: 'phoneNumbers',   label: 'Phone Numbers',           icon: '☎', to: '/user/phone-numbers' },
-  { id: 'voices',         label: 'Voices',                  icon: '◑', to: '/user/voices' },
-  { id: 'knowledgeBases', label: 'Knowledge Bases',         icon: '◧', to: '/user/knowledge-bases' },
-  { id: 'webWidget',      label: 'Web Widget',              icon: '⬕', to: '/user/web-widget' },
-  { id: 'sms',            label: 'SMS',                     icon: '✉', to: '/user/sms' },
-  { id: 'compliance',     label: 'Compliance & Policy',     icon: '⚖', to: '/user/compliance' },
-  { id: 'addOns',         label: 'Add Ons',                 icon: '⊞', to: '/user/add-ons' },
-  { id: 'documentation',  label: 'Documentation',           icon: '⊡', to: '/user/documentation' },
+  { id: 'home',          label: 'Home',            icon: '⌂', to: '/user' },
+  { id: 'aiAgents',     label: 'AI Agents',        icon: '🤖', badge: 'new', to: '/user/ai-agents' },
+  { id: 'analytics',     label: 'Analytics',        icon: '◈', to: '/user/analytics' },
+  { id: 'callLogs',      label: 'Call Logs',        icon: '≡', to: '/user/call-logs' },
+  { id: 'sendCall',      label: 'Send Call',        icon: '↗', to: '/user/send-call' },
+  { id: 'tools',         label: 'Tools',            icon: '⚙', badge: 'updated', to: '/user/tools' },
+  { id: 'billing',       label: 'Billing & Credits',icon: '◎', to: '/user/billing' },
+  { id: 'voices',        label: 'Voices',           icon: '◑', to: '/user/voices' },
+  { id: 'sms',           label: 'SMS',              icon: '✉', to: '/user/sms' },
+  { id: 'addOns',        label: 'Add Ons',          icon: '⊞', to: '/user/add-ons' },
+  { id: 'documentation', label: 'Documentation',    icon: '⊡', to: '/user/documentation' },
 ]
 
 // IMPL -> IDs of routes that are currently implemented and clickable
 const IMPL = [
-  'home', 'aiAgents', 'analytics', 'callLogs', 'sendCall', 'pathways',
-  'batches', 'tools', 'billing', 'voices', 'personas',
-  'knowledgeBases', 'webWidget',
+  'home', 'aiAgents', 'analytics', 'callLogs', 'sendCall', 'tools', 'billing', 'voices',
 ]
 
 // ---------------------------------------------------------------

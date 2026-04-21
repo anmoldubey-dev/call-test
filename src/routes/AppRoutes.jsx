@@ -64,14 +64,9 @@ import AppShell       from '../layout/AppShell.jsx'
 import HomePage           from '../pages/user/HomePage.jsx'
 import AnalyticsPage      from '../pages/user/AnalyticsPage.jsx'
 import SendCallPage       from '../pages/user/SendCallPage.jsx'
-import PersonasPage       from '../pages/user/PersonasPage.jsx'
-import PathwaysPage       from '../pages/user/PathwaysPage.jsx'
-import BatchesPage        from '../pages/user/BatchesPage.jsx'
 import ToolsPage          from '../pages/user/ToolsPage.jsx'
 import BillingPage        from '../pages/user/BillingPage.jsx'
 import VoicesPage         from '../pages/user/VoicesPage.jsx'
-import KnowledgeBasesPage from '../pages/user/KnowledgeBasesPage.jsx'
-import WebWidgetPage      from '../pages/user/WebWidgetPage.jsx'
 import CallLogsPage       from '../pages/user/CallLogsPage.jsx'
 import BroadcastListener  from '../pages/user/BroadcastListener.jsx'
 import AiAgentsPage       from '../pages/user/AiAgentsPage.jsx'
@@ -136,14 +131,9 @@ const AppRoutes = () => {
         <Route index                  element={<HomePage />} />
         <Route path="analytics"       element={<AnalyticsPage />} />
         <Route path="send-call"       element={<SendCallPage />} />
-        <Route path="personas"        element={<PersonasPage />} />
-        <Route path="pathways"        element={<PathwaysPage />} />
-        <Route path="batches"         element={<BatchesPage />} />
         <Route path="tools"           element={<ToolsPage />} />
         <Route path="billing"         element={<BillingPage />} />
         <Route path="voices"          element={<VoicesPage />} />
-        <Route path="knowledge-bases" element={<KnowledgeBasesPage />} />
-        <Route path="web-widget"      element={<WebWidgetPage />} />
         <Route path="call-logs"       element={<CallLogsPage />} />
         <Route path="ai-agents"       element={<AiAgentsPage />} />
       </Route>
