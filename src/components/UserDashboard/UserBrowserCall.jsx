@@ -60,6 +60,29 @@ const _TL_SR_LANG = {
     zh: 'zh-CN', ru: 'ru-RU', ne: 'ne-NP',
 };
 
+const _TL_AUDIO_CHUNK_BYTES = 12000;
+
+function _u8ToB64(u8) {
+    let s = '';
+    for (let i = 0; i < u8.length; i++) s += String.fromCharCode(u8[i]);
+    return btoa(s);
+}
+
+async function _publishTlAudioChunked(participant, wav) {
+    if (!participant || !wav?.length) return;
+    const id = `tl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const total = Math.ceil(wav.length / _TL_AUDIO_CHUNK_BYTES);
+    for (let i = 0; i < total; i++) {
+        const start = i * _TL_AUDIO_CHUNK_BYTES;
+        const end = Math.min(start + _TL_AUDIO_CHUNK_BYTES, wav.length);
+        const chunk = wav.subarray(start, end);
+        const payload = new TextEncoder().encode(JSON.stringify({
+            kind: 'chunk', id, index: i, total, data_b64: _u8ToB64(chunk),
+        }));
+        await participant.publishData(payload, { reliable: true, topic: 'tl_user_audio' });
+    }
+}
+
 function TranslationLayerInner({ config }) {
     const room = useRoomContext();
     const recRef = useRef(null);
@@ -99,6 +122,9 @@ function TranslationLayerInner({ config }) {
         if (!config?.enabled || !room) return;
 
         room.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+        const micGuard = setInterval(() => {
+            room.localParticipant?.setMicrophoneEnabled(false).catch(() => {});
+        }, 1200);
 
         // Announce TL config to agent so they know to publish transcripts
         try {
@@ -107,7 +133,10 @@ function TranslationLayerInner({ config }) {
         } catch (_) {}
 
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return;
+        if (!SR) {
+            clearInterval(micGuard);
+            return;
+        }
         const rec = new SR();
         recRef.current = rec;
         rec.continuous = true;
@@ -126,13 +155,14 @@ function TranslationLayerInner({ config }) {
                 if (!audio_b64) return;
                 // Send translated WAV bytes to agent via LiveKit data channel
                 const wav = Uint8Array.from(atob(audio_b64), c => c.charCodeAt(0));
-                room.localParticipant.publishData(wav, { reliable: true, topic: 'tl_user_audio' });
+                await _publishTlAudioChunked(room.localParticipant, wav);
             } catch (e) { console.warn('[TL] user relay error:', e); }
         };
         rec.onend = () => { try { rec.start(); } catch (_) {} };
         try { rec.start(); } catch (_) {}
 
         return () => {
+            clearInterval(micGuard);
             rec.onend = null; rec.abort(); recRef.current = null;
             room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
         };
@@ -487,7 +517,7 @@ export default function UserBrowserCall({ userName = "Guest User", userEmail = "
                     serverUrl={connectionDetails.wsUrl} connect={true} onDisconnected={handleEndCall}>
                     <RoomAudioRenderer />
                     <QueueTTSReceiver active={callState === "waiting"} />
-                    <CallerTranscriptSender enabled={callState === "active"} sessionId={connectionDetails.room} />
+                    <CallerTranscriptSender enabled={callState === "active" && !tlConfig} sessionId={connectionDetails.room} />
                     {tlConfig && callState === "active" && <TranslationLayerInner config={tlConfig} />}
                     <CallStatusWatcher onAgentJoined={() => { _stopLangDetection(); setCallState("active"); }} onAgentLeft={handleEndCall} />
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
