@@ -232,31 +232,6 @@ function TranslationTab() {
         )}
       </div>
 
-      {/* Voice gender */}
-      <div style={{ background: 'var(--bg2)', border: '1px solid var(--bdr)', borderRadius: 14, padding: '20px 24px' }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>Agent Voice Gender</div>
-        <div style={{ fontSize: 12, color: 'var(--txt2)', marginBottom: 14 }}>
-          Selects the Parler TTS / Indic TTS voice used to speak the translated agent response back to you.
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          {['female', 'male'].map(g => (
-            <button
-              key={g}
-              onClick={() => update('voice_gender', g)}
-              style={{
-                padding: '10px 24px', borderRadius: 10, border: '1px solid', cursor: 'pointer',
-                fontWeight: 600, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.18s',
-                background: cfg.voice_gender === g ? 'var(--purl)' : 'transparent',
-                color:      cfg.voice_gender === g ? 'var(--pur2)' : 'var(--txt2)',
-                borderColor: cfg.voice_gender === g ? 'var(--bdr2)' : 'var(--bdr)',
-              }}
-            >
-              {g === 'female' ? '♀ Female' : '♂ Male'}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* How it works */}
       <div style={{ background: 'var(--bg2)', border: '1px solid var(--bdr)', borderRadius: 14, padding: '20px 24px' }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 14 }}>How the Translation Layer Works</div>
