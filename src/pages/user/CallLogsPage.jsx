@@ -35,24 +35,45 @@ const CallLogsPage = () => {
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
   const { user } = useAuth();
+
   // ---------------------------------------------------------------
   // SECTION: DATA SYNCHRONIZATION (API)
   // ---------------------------------------------------------------
+
   // Sub-process -> loadCalls()-> Orchestrates the terminal data sync based on filter state
   const loadCalls = async () => {
     try {
       setLoading(true);
       setError(null);
-      // Logic Branch -> URL resolution: Modulates endpoint based on active filter
-      let url = filter !== "all" ? `/call-logs?status=${filter}` : `/call-logs`;
+      // Logic Branch -> URL resolution: Use the global calls endpoint and parse on the frontend
+      const response = await api.get('/calls');
       
-      // Ye naya logic hai jo user ka email URL me append karega
-      if (user?.email) {
-        url += url.includes("?") ? `&user_email=${encodeURIComponent(user.email)}` : `?user_email=${encodeURIComponent(user.email)}`;
-      }
+      const allCallsArray = Array.isArray(response) ? response : [];
       
-      const response = await api.get(url);
-      setCalls(response.calls || []);
+      // Enforce Data Isolation: Only keep calls where caller_number/email matches authenticated user
+      const userCalls = user?.email 
+        ? allCallsArray.filter(c => c.caller_number === user.email || c.caller_email === user.email || c.caller_name === user.email)
+        : [];
+
+      // Status Filtering
+      const statusFiltered = filter !== "all" ? userCalls.filter(c => c.status === filter) : userCalls;
+
+      // Map to UI expected format
+      const mappedCalls = statusFiltered.map(r => ({
+          id: r.id,
+          call_id: r.session_id || String(r.id),
+          direction: "inbound",
+          to_number: "Web Client",
+          from_number: r.caller_number || r.caller_name || r.caller_email || "Unknown",
+          duration_seconds: r.duration_seconds || 0,
+          issues: "-",
+          created_at: r.created_at,
+          status: r.status || "completed",
+          pathway: r.department || "General",
+          recording_url: r.recording_url || null
+      }));
+
+      setCalls(mappedCalls);
     } catch (err) {
       setError(err.message || "Failed to load calls");
     } finally {
@@ -63,8 +84,7 @@ const CallLogsPage = () => {
   // Lifecycle -> Registry Sync: Triggers hydration whenever the filter node transitions
   useEffect(() => {
     loadCalls();
-  }, [filter, user?.email]); // Yahan dependency me user?.email add kiya hai
-
+  }, [filter, user?.email]);
 
   // ---------------------------------------------------------------
   // SECTION: UI MAPPING & FORMATTERS

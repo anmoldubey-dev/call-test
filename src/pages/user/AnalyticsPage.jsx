@@ -115,13 +115,54 @@ const CallsTabView = ({ onCallClick }) => {
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  // Internal Call -> fetchData: GET /analytics/calls -> Hydrates registry based on period
+  // Internal Call -> fetchData: GET /calls -> Hydrates registry based on period
   useEffect(() => {
     setLoading(true);
-    let url = `/analytics/calls?period=${period}`;
-    if (user?.email) url += `&user_email=${encodeURIComponent(user.email)}`;
-    api.get(url)
-      .then(setData).catch(console.error).finally(() => setLoading(false));
+    api.get('/calls')
+      .then((response) => {
+        const allCallsArray = Array.isArray(response) ? response : [];
+        const userCalls = user?.email 
+          ? allCallsArray.filter(c => c.caller_number === user.email || c.caller_email === user.email || c.caller_name === user.email)
+          : [];
+
+        const total_calls = userCalls.length;
+        const total_cost = 0; // Hardcoded UI default for zero cost
+        const avg_duration = total_calls > 0 ? userCalls.reduce((s, c) => s + (c.duration_seconds || 0), 0) / total_calls : 0;
+        const total_transfers = userCalls.filter(c => c.status === 'transferred').length;
+        const total_issues = 0;
+
+        const completed = userCalls.filter(c => c.status === 'completed' || c.status === 'ended').length;
+        const voicemail = userCalls.filter(c => c.status === 'voicemail').length;
+        const failed = userCalls.filter(c => c.status === 'failed' || c.status === 'abandoned').length;
+
+        const under_2min = userCalls.filter(c => (c.duration_seconds || 0) < 120).length;
+        const two_to_5min = userCalls.filter(c => (c.duration_seconds || 0) >= 120 && (c.duration_seconds || 0) < 300).length;
+        const over_5min = userCalls.filter(c => (c.duration_seconds || 0) >= 300).length;
+
+        const mappedCalls = userCalls.map(r => ({
+          id: r.id,
+          call_id: r.session_id || String(r.id),
+          direction: "inbound",
+          to_number: "Web Client",
+          from_number: r.caller_number || r.caller_name || r.caller_email || "Unknown",
+          duration_seconds: r.duration_seconds || 0,
+          issues: "-",
+          created_at: r.created_at,
+          status: r.status || "completed",
+          pathway: r.department || "General",
+          recording_url: r.recording_url || null
+        }));
+
+        setData({
+          summary: { total_calls, total_cost, avg_duration_seconds: avg_duration, total_transfers, total_issues },
+          chart: [{ date: "Overall", calls: total_calls }],
+          outcomes: { completed, voicemail, failed },
+          duration_dist: { under_2min, two_to_5min, over_5min },
+          calls: mappedCalls
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [period, user?.email]);
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
