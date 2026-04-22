@@ -26,6 +26,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 // ---------------------------------------------------------------
 // SECTION: DESIGN TOKENS & VOICE CONFIGURATION
@@ -112,13 +113,16 @@ const CallsTabView = ({ onCallClick }) => {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   // Internal Call -> fetchData: GET /analytics/calls -> Hydrates registry based on period
   useEffect(() => {
     setLoading(true);
-    api.get(`/analytics/calls?period=${period}`)
+    let url = `/analytics/calls?period=${period}`;
+    if (user?.email) url += `&user_email=${encodeURIComponent(user.email)}`;
+    api.get(url)
       .then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [period]);
+  }, [period, user?.email]);
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
 
@@ -292,13 +296,16 @@ const ReportsTabView = () => {
   const [period, setPeriod] = useState("last_week");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   // Internal Call -> api.get(): GET /analytics/reports -> Synchronizes historical trends
   useEffect(() => {
     setLoading(true);
-    api.get(`/analytics/reports?period=${period}`)
+    let url = `/analytics/reports?period=${period}`;
+    if (user?.email) url += `&user_email=${encodeURIComponent(user.email)}`;
+    api.get(url)
       .then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [period]);
+  }, [period, user?.email]);
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
   const summaryItems = data ? [

@@ -77,13 +77,26 @@ export function Dashboard() {
     Promise.all([
       fetch(`${API_BASE}/api/superuser/realtime`, { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
       fetch(`${API_BASE}/api/stats`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API_BASE}/api/calls`, { headers }).then(r => r.ok ? r.json() : []).catch(() => []),
     ])
-      .then(([realtimeData, statsData]) => {
+      .then(([realtimeData, statsData, allCalls]) => {
         setDbAgents(realtimeData.agents || []);
         setDbBubbleAgents(realtimeData.bubbleAgents || []);
         setDbSankey(realtimeData.allTimeSankey || realtimeData.sankey || { nodes: [], links: [] });
-        if (realtimeData.allTimeKpi) setDbStats(realtimeData.allTimeKpi);
-        else if (statsData) setDbStats(statsData);
+        
+        // Calculate system-wide aggregates from allCalls
+        const trueTotal = Array.isArray(allCalls) ? allCalls.length : 0;
+        const trueResolved = Array.isArray(allCalls) ? allCalls.filter(c => c.status === 'ended' || c.status === 'completed').length : 0;
+        const trueEscalated = Array.isArray(allCalls) ? allCalls.filter(c => c.status === 'abandoned' || c.status === 'transferred').length : 0;
+
+        setDbStats({
+          totalCalls: trueTotal,
+          totalTraffic: trueTotal,
+          resolved: trueResolved,
+          escalated: trueEscalated,
+          ...statsData
+        });
+
         if (!isSilent) setLoading(false);
       })
       .catch((err) => {
@@ -219,7 +232,7 @@ export function Dashboard() {
               <RiskPanel agents={dbAgents} onAgentClick={handleAgentClick} />
             </div>
           </div>
-          <KPIPanel agents={dbAgents} stats={dbStats} />
+          
         </main>
 
         <AIChatBox />

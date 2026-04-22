@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Btn } from "../../components/dashboard/UI";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 // ======================== Call Logs Orchestrator ========================
 // CallLogsPage -> Administrative telemetry node for auditing historical 
@@ -33,18 +34,23 @@ const CallLogsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");
-
+  const { user } = useAuth();
   // ---------------------------------------------------------------
   // SECTION: DATA SYNCHRONIZATION (API)
   // ---------------------------------------------------------------
-
   // Sub-process -> loadCalls()-> Orchestrates the terminal data sync based on filter state
   const loadCalls = async () => {
     try {
       setLoading(true);
       setError(null);
       // Logic Branch -> URL resolution: Modulates endpoint based on active filter
-      const url = filter !== "all" ? `/call-logs?status=${filter}` : `/call-logs`;
+      let url = filter !== "all" ? `/call-logs?status=${filter}` : `/call-logs`;
+      
+      // Ye naya logic hai jo user ka email URL me append karega
+      if (user?.email) {
+        url += url.includes("?") ? `&user_email=${encodeURIComponent(user.email)}` : `?user_email=${encodeURIComponent(user.email)}`;
+      }
+      
       const response = await api.get(url);
       setCalls(response.calls || []);
     } catch (err) {
@@ -57,7 +63,8 @@ const CallLogsPage = () => {
   // Lifecycle -> Registry Sync: Triggers hydration whenever the filter node transitions
   useEffect(() => {
     loadCalls();
-  }, [filter]);
+  }, [filter, user?.email]); // Yahan dependency me user?.email add kiya hai
+
 
   // ---------------------------------------------------------------
   // SECTION: UI MAPPING & FORMATTERS
