@@ -1,20 +1,17 @@
 // ======================== Analytics Intelligence Orchestrator ========================
-// AnalyticsPage -> Root analytical node for platform telemetry. Orchestrates 
-// call-level data streams, outcome distributions, and high-fidelity session 
-// deep-dives. Features a multi-modal audio engine with dynamic voice-profile 
-// switching and real-time transcript translation logic.
+// AnalyticsPage -> Root analytical node for platform telemetry. Orchestrates
+// call-level data streams, outcome distributions, and high-fidelity session
+// deep-dives. Features a multi-modal audio engine and real-time transcript
+// translation logic.
 // ||
 // ||
 // ||
 // Functions -> AnalyticsPage()-> Primary functional entry point for data analysis:
 // ||           |
-// ||           |--- handleVoiceChange()-> [Action Trigger]: Modulates the audio 
-// ||           |    buffer and telemetry based on gender/age profile deltas.
-// ||           |
-// ||           |--- getTranscript()-> [Logic Branch]: Resolves original vs. 
+// ||           |--- getTranscript()-> [Logic Branch]: Resolves original vs.
 // ||           |    translated text segments based on the selected locale.
 // ||           |
-// ||           |--- CallsTabView()-> [Sub-module]: Orchestrates summary stats 
+// ||           |--- CallsTabView()-> [Sub-module]: Orchestrates summary stats
 // ||           |    and relational call log registries via GET /analytics/calls.
 // ||           |
 // ||           └── Audio Player Engine:
@@ -26,29 +23,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import api from "../../services/api";
-import { useAuth } from "../../context/AuthContext";
 
 // ---------------------------------------------------------------
-// SECTION: DESIGN TOKENS & VOICE CONFIGURATION
+// SECTION: DESIGN TOKENS
 // ---------------------------------------------------------------
 
-const VOICE_PROFILES = {
-  female: { label: "Female", icon: "♀", color: "#ec4899", colorDim: "rgba(236,72,153,0.15)", colorBorder: "rgba(236,72,153,0.3)" },
-  male: { label: "Male", icon: "♂", color: "#3b82f6", colorDim: "rgba(59,130,246,0.15)", colorBorder: "rgba(59,130,246,0.3)" },
-};
+const PLAYER_COLOR = "#6366f1";
+const PLAYER_COLOR_DIM = "rgba(99,102,241,0.15)";
+const PLAYER_COLOR_BORDER = "rgba(99,102,241,0.3)";
 
-const AGE_GROUPS = [
-  { value: "18-24", label: "18 – 24" },
-  { value: "25-34", label: "25 – 34" },
-  { value: "35-44", label: "35 – 44" },
-  { value: "45-54", label: "45 – 54" },
-  { value: "55+", label: "55 +" },
-];
-
-// Internal Utility -> getAudioUrl()-> Maps session identity and profile metadata to M4A assets
-const getAudioUrl = (call, gender, ageGroup) => {
+// Internal Utility -> getAudioUrl()-> Maps session identity to M4A assets
+const getAudioUrl = (call) => {
   const rawId = (call.call_id || String(call.id)).replace("#", "");
-  return `/useraudio/${rawId}__${gender}__${ageGroup}.m4a`;
+  return `/useraudio/${rawId}.m4a`;
 };
 
 // ---------------------------------------------------------------
@@ -113,57 +100,13 @@ const CallsTabView = ({ onCallClick }) => {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
 
-  // Internal Call -> fetchData: GET /calls -> Hydrates registry based on period
+  // Internal Call -> fetchData: GET /analytics/calls -> Hydrates registry based on period
   useEffect(() => {
     setLoading(true);
-    api.get('/calls')
-      .then((response) => {
-        const allCallsArray = Array.isArray(response) ? response : [];
-        const userCalls = user?.email 
-          ? allCallsArray.filter(c => c.caller_number === user.email || c.caller_email === user.email || c.caller_name === user.email)
-          : [];
-
-        const total_calls = userCalls.length;
-        const total_cost = 0; // Hardcoded UI default for zero cost
-        const avg_duration = total_calls > 0 ? userCalls.reduce((s, c) => s + (c.duration_seconds || 0), 0) / total_calls : 0;
-        const total_transfers = userCalls.filter(c => c.status === 'transferred').length;
-        const total_issues = 0;
-
-        const completed = userCalls.filter(c => c.status === 'completed' || c.status === 'ended').length;
-        const voicemail = userCalls.filter(c => c.status === 'voicemail').length;
-        const failed = userCalls.filter(c => c.status === 'failed' || c.status === 'abandoned').length;
-
-        const under_2min = userCalls.filter(c => (c.duration_seconds || 0) < 120).length;
-        const two_to_5min = userCalls.filter(c => (c.duration_seconds || 0) >= 120 && (c.duration_seconds || 0) < 300).length;
-        const over_5min = userCalls.filter(c => (c.duration_seconds || 0) >= 300).length;
-
-        const mappedCalls = userCalls.map(r => ({
-          id: r.id,
-          call_id: r.session_id || String(r.id),
-          direction: "inbound",
-          to_number: "Web Client",
-          from_number: r.caller_number || r.caller_name || r.caller_email || "Unknown",
-          duration_seconds: r.duration_seconds || 0,
-          issues: "-",
-          created_at: r.created_at,
-          status: r.status || "completed",
-          pathway: r.department || "General",
-          recording_url: r.recording_url || null
-        }));
-
-        setData({
-          summary: { total_calls, total_cost, avg_duration_seconds: avg_duration, total_transfers, total_issues },
-          chart: [{ date: "Overall", calls: total_calls }],
-          outcomes: { completed, voicemail, failed },
-          duration_dist: { under_2min, two_to_5min, over_5min },
-          calls: mappedCalls
-        });
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [period, user?.email]);
+    api.get(`/analytics/calls?period=${period}`)
+      .then(setData).catch(console.error).finally(() => setLoading(false));
+  }, [period]);
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
 
@@ -337,16 +280,13 @@ const ReportsTabView = () => {
   const [period, setPeriod] = useState("last_week");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
 
   // Internal Call -> api.get(): GET /analytics/reports -> Synchronizes historical trends
   useEffect(() => {
     setLoading(true);
-    let url = `/analytics/reports?period=${period}`;
-    if (user?.email) url += `&user_email=${encodeURIComponent(user.email)}`;
-    api.get(url)
+    api.get(`/analytics/reports?period=${period}`)
       .then(setData).catch(console.error).finally(() => setLoading(false));
-  }, [period, user?.email]);
+  }, [period]);
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
   const summaryItems = data ? [
@@ -421,10 +361,6 @@ const AnalyticsPage = () => {
   const [selectedCall, setSelectedCall] = useState(null);
   const [selectedLanguage, setSelectedLanguage] = useState("original");
 
-  const [selectedGender, setSelectedGender] = useState("female");
-  const [selectedAgeGroup, setSelectedAgeGroup] = useState("25-34");
-  const [voiceLoading, setVoiceLoading] = useState(false);
-
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -443,8 +379,6 @@ const AnalyticsPage = () => {
     { code: "hi", name: "Hindi" }, { code: "ar", name: "Arabic" },
     { code: "pt", name: "Portuguese" }, { code: "ru", name: "Russian" },
   ];
-
-  const voiceProfile = VOICE_PROFILES[selectedGender];
 
   // Logic Branch -> Translation Engine: Resolves localized text segments for session turns
   const translations = {
@@ -485,7 +419,7 @@ const AnalyticsPage = () => {
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("ended", onEnded);
     };
-  }, [selectedCall, selectedGender, selectedAgeGroup]);
+  }, [selectedCall]);
 
   // Logic Branch -> Simulated Playback: Fallback mechanism for sessions lacking active audio nodes
   useEffect(() => {
@@ -506,25 +440,6 @@ const AnalyticsPage = () => {
       setIsPlaying(false);
     }
   }, [selectedCall]);
-
-  // Action Trigger -> handleVoiceChange(): Synchronizes hardware audio reload with profile deltas
-  const handleVoiceChange = (newGender, newAge) => {
-    if (audioRef.current) audioRef.current.pause();
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setVoiceLoading(true);
-    const g = newGender !== undefined ? newGender : selectedGender;
-    const a = newAge !== undefined ? newAge : selectedAgeGroup;
-    if (newGender !== undefined) setSelectedGender(newGender);
-    if (newAge !== undefined) setSelectedAgeGroup(newAge);
-    setTimeout(() => {
-      if (audioRef.current) {
-        audioRef.current.src = getAudioUrl(selectedCall, g, a);
-        audioRef.current.load();
-      }
-      setVoiceLoading(false);
-    }, 700);
-  };
 
   // Action Trigger -> Audio Controls: Modulates temporal and hardware playback state
   const togglePlay = () => {
@@ -559,7 +474,7 @@ const AnalyticsPage = () => {
     return Array.from({ length: total }, (_, i) => {
       const h = 15 + ((i * 7 + 13) % 100 % 45);
       const played = i / total <= progress;
-      return <div key={i} style={{ width: 3, height: h, background: voiceLoading ? "rgba(255,255,255,0.06)" : played ? voiceProfile.color : "rgba(255,255,255,0.12)", borderRadius: 2, transition: "background 0.3s" }} />;
+      return <div key={i} style={{ width: 3, height: h, background: played ? PLAYER_COLOR : "rgba(255,255,255,0.12)", borderRadius: 2, transition: "background 0.3s" }} />;
     });
   };
 
@@ -574,8 +489,7 @@ const AnalyticsPage = () => {
 
     return (
       <div style={{ background: "#0a0f1a", minHeight: "100vh", padding: 32, color: "#e2e8f0", fontFamily: "system-ui,sans-serif" }}>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        <audio ref={audioRef} src={getAudioUrl(selectedCall, selectedGender, selectedAgeGroup)} />
+        <audio ref={audioRef} src={getAudioUrl(selectedCall)} />
 
         <button onClick={() => { setSelectedCall(null); setIsPlaying(false); audioRef.current?.pause(); }}
           style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", padding: "10px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, marginBottom: 24, fontFamily: "inherit" }}>
@@ -583,14 +497,9 @@ const AnalyticsPage = () => {
         </button>
 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-            <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
-              Call Details — #{selectedCall.id}
-            </h2>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: voiceProfile.colorDim, border: `1px solid ${voiceProfile.colorBorder}`, borderRadius: 20, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: voiceProfile.color }}>
-              {voiceProfile.icon} {voiceProfile.label} · {selectedAgeGroup}
-            </span>
-          </div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+            Call Details — #{selectedCall.id}
+          </h2>
           <div style={{ display: "flex", gap: 8 }}>
             <button style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", padding: "8px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Download Transcript</button>
             <button style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", color: "#94a3b8", padding: "8px 16px", borderRadius: 8, fontSize: 13, cursor: "pointer" }}>Share</button>
@@ -619,56 +528,6 @@ const AnalyticsPage = () => {
               ))}
             </div>
 
-            <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${voiceProfile.colorBorder}`, borderRadius: 12, padding: 20, transition: "border-color 0.4s" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase" }}>Voice Profile</div>
-                <span style={{ fontSize: 9, background: voiceProfile.colorDim, border: `1px solid ${voiceProfile.colorBorder}`, color: voiceProfile.color, borderRadius: 8, padding: "1px 6px", fontWeight: 700, letterSpacing: "0.05em" }}>AUDIO</span>
-              </div>
-              <p style={{ fontSize: 11, color: "#475569", margin: "0 0 16px 0", lineHeight: 1.5 }}>
-                Select a caller profile — audio &amp; transcript update to match.
-              </p>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Gender</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {["female", "male"].map(g => {
-                    const vp = VOICE_PROFILES[g];
-                    const active = selectedGender === g;
-                    return (
-                      <button key={g} onClick={() => !voiceLoading && handleVoiceChange(g, undefined)}
-                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "10px 0", borderRadius: 9, border: `1px solid ${active ? vp.colorBorder : "rgba(255,255,255,0.08)"}`, background: active ? vp.colorDim : "rgba(255,255,255,0.03)", color: active ? vp.color : "#64748b", fontSize: 13, fontWeight: active ? 700 : 500, cursor: voiceLoading ? "not-allowed" : "pointer", transition: "all 0.2s", fontFamily: "inherit" }}>
-                        <span style={{ fontSize: 18, lineHeight: 1 }}>{vp.icon}</span>
-                        {vp.label}
-                        {active && <span style={{ width: 6, height: 6, borderRadius: "50%", background: vp.color, marginLeft: 2, flexShrink: 0 }} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Age Group</label>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {AGE_GROUPS.map(ag => {
-                    const active = selectedAgeGroup === ag.value;
-                    return (
-                      <button key={ag.value} onClick={() => !voiceLoading && handleVoiceChange(undefined, ag.value)}
-                        style={{ padding: "7px 13px", borderRadius: 20, border: `1px solid ${active ? voiceProfile.colorBorder : "rgba(255,255,255,0.08)"}`, background: active ? voiceProfile.colorDim : "rgba(255,255,255,0.03)", color: active ? voiceProfile.color : "#64748b", fontSize: 12, fontWeight: active ? 700 : 500, cursor: voiceLoading ? "not-allowed" : "pointer", transition: "all 0.2s", fontFamily: "inherit" }}>
-                        {ag.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {voiceLoading && (
-                <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <span style={{ display: "inline-block", width: 14, height: 14, border: `2px solid ${voiceProfile.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#94a3b8" }}>Loading <strong style={{ color: voiceProfile.color }}>{voiceProfile.label} · {selectedAgeGroup}</strong> voice…</span>
-                </div>
-              )}
-            </div>
-
             <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, padding: 20 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", marginBottom: 16, textTransform: "uppercase" }}>Call Metrics</div>
               {[
@@ -685,43 +544,31 @@ const AnalyticsPage = () => {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${voiceLoading ? "rgba(255,255,255,0.08)" : voiceProfile.colorBorder}`, borderRadius: 12, padding: 20, transition: "border-color 0.4s" }}>
+            <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${PLAYER_COLOR_BORDER}`, borderRadius: 12, padding: 20 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase" }}>Audio Recording</div>
-                {voiceLoading
-                  ? <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 6 }}>
-                    <span style={{ display: "inline-block", width: 10, height: 10, border: `2px solid ${voiceProfile.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                    Switching voice…
-                  </span>
-                  : <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, color: voiceProfile.color, background: voiceProfile.colorDim, border: `1px solid ${voiceProfile.colorBorder}`, borderRadius: 12, padding: "2px 8px" }}>
-                    {voiceProfile.icon} {voiceProfile.label} · {selectedAgeGroup}
-                  </span>
-                }
               </div>
 
-              <div style={{ display: "flex", gap: 3, alignItems: "center", height: 52, marginBottom: 12, opacity: voiceLoading ? 0.3 : 1, transition: "opacity 0.3s" }}>
+              <div style={{ display: "flex", gap: 3, alignItems: "center", height: 52, marginBottom: 12 }}>
                 {generateWaveformBars()}
               </div>
 
-              <div ref={progressRef} onClick={!voiceLoading ? handleProgressClick : undefined}
-                style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, cursor: voiceLoading ? "not-allowed" : "pointer", marginBottom: 10 }}>
-                <div style={{ width: `${progressPercent}%`, height: "100%", background: voiceProfile.color, borderRadius: 2, transition: "width 0.1s,background 0.4s" }} />
+              <div ref={progressRef} onClick={handleProgressClick}
+                style={{ height: 4, background: "rgba(255,255,255,0.08)", borderRadius: 2, cursor: "pointer", marginBottom: 10 }}>
+                <div style={{ width: `${progressPercent}%`, height: "100%", background: PLAYER_COLOR, borderRadius: 2, transition: "width 0.1s" }} />
               </div>
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 11, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{formatTime(currentTime)}</span>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                  <button onClick={() => skipBy(-10)} disabled={voiceLoading}
-                    style={{ background: "none", border: "none", color: voiceLoading ? "#334155" : "#94a3b8", cursor: voiceLoading ? "not-allowed" : "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>⏪</button>
-                  <button onClick={!voiceLoading ? togglePlay : undefined} disabled={voiceLoading}
-                    style={{ background: voiceLoading ? "rgba(255,255,255,0.08)" : voiceProfile.color, border: "none", color: "#fff", width: 42, height: 42, borderRadius: "50%", cursor: voiceLoading ? "not-allowed" : "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.4s", boxShadow: voiceLoading ? "none" : `0 0 18px ${voiceProfile.colorDim}` }}>
-                    {voiceLoading
-                      ? <span style={{ display: "inline-block", width: 16, height: 16, border: "2px solid rgba(255,255,255,0.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
-                      : isPlaying ? "⏸" : "▶"
-                    }
+                  <button onClick={() => skipBy(-10)}
+                    style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>⏪</button>
+                  <button onClick={togglePlay}
+                    style={{ background: PLAYER_COLOR, border: "none", color: "#fff", width: 42, height: 42, borderRadius: "50%", cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.4s", boxShadow: `0 0 18px ${PLAYER_COLOR_DIM}` }}>
+                    {isPlaying ? "⏸" : "▶"}
                   </button>
-                  <button onClick={() => skipBy(10)} disabled={voiceLoading}
-                    style={{ background: "none", border: "none", color: voiceLoading ? "#334155" : "#94a3b8", cursor: voiceLoading ? "not-allowed" : "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>⏩</button>
+                  <button onClick={() => skipBy(10)}
+                    style={{ background: "none", border: "none", color: "#94a3b8", cursor: "pointer", fontSize: 20, padding: 0, lineHeight: 1 }}>⏩</button>
                 </div>
                 <span style={{ fontSize: 11, color: "#64748b", fontVariantNumeric: "tabular-nums" }}>{formatTime(duration)}</span>
               </div>
@@ -735,9 +582,6 @@ const AnalyticsPage = () => {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase" }}>Transcript</span>
-                  <span style={{ fontSize: 10, background: voiceProfile.colorDim, border: `1px solid ${voiceProfile.colorBorder}`, color: voiceProfile.color, borderRadius: 10, padding: "1px 7px", fontWeight: 700 }}>
-                    {voiceProfile.icon} {voiceProfile.label} · {selectedAgeGroup}
-                  </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span style={{ fontSize: 12, color: "#64748b" }}>Translate to:</span>
@@ -754,26 +598,19 @@ const AnalyticsPage = () => {
                 </div>
               )}
 
-              {voiceLoading && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", background: "rgba(255,255,255,0.04)", borderRadius: 8, marginBottom: 12, border: "1px solid rgba(255,255,255,0.07)" }}>
-                  <span style={{ display: "inline-block", width: 12, height: 12, border: `2px solid ${voiceProfile.color}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", flexShrink: 0 }} />
-                  <span style={{ fontSize: 12, color: "#64748b" }}>Regenerating transcript for <strong style={{ color: voiceProfile.color }}>{voiceProfile.label} · {selectedAgeGroup}</strong>…</span>
-                </div>
-              )}
-
-              <div style={{ maxHeight: 340, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14, opacity: voiceLoading ? 0.4 : 1, transition: "opacity 0.3s" }}>
+              <div style={{ maxHeight: 340, overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
                 {currentTranscript.length === 0 ? (
                   <div style={{ textAlign: "center", color: "#475569", fontSize: 13, padding: 20 }}>No transcript available for this call.</div>
                 ) : (
                   currentTranscript.map((msg, idx) => (
                     <div key={idx} style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: msg.speaker === "AI" ? "rgba(139,92,246,0.15)" : voiceProfile.colorDim, border: `1px solid ${msg.speaker === "AI" ? "rgba(139,92,246,0.3)" : voiceProfile.colorBorder}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0, marginTop: 2 }}>
-                        {msg.speaker === "AI" ? "🤖" : voiceProfile.icon}
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: msg.speaker === "AI" ? "rgba(139,92,246,0.15)" : PLAYER_COLOR_DIM, border: `1px solid ${msg.speaker === "AI" ? "rgba(139,92,246,0.3)" : PLAYER_COLOR_BORDER}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flexShrink: 0, marginTop: 2 }}>
+                        {msg.speaker === "AI" ? "🤖" : "👤"}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", gap: 8, marginBottom: 4, alignItems: "center" }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: msg.speaker === "AI" ? "#8b5cf6" : voiceProfile.color }}>
-                            {msg.speaker === "AI" ? "AI Assistant" : `Customer (${voiceProfile.label}, ${selectedAgeGroup})`}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: msg.speaker === "AI" ? "#8b5cf6" : PLAYER_COLOR }}>
+                            {msg.speaker === "AI" ? "AI Assistant" : "Customer"}
                           </span>
                           <span style={{ fontSize: 10, color: "#475569" }}>{msg.time}</span>
                         </div>
@@ -848,9 +685,6 @@ const AnalyticsPage = () => {
 
       {activeTab === "CALLS" && (
         <CallsTabView onCallClick={call => {
-          setSelectedGender("female");
-          setSelectedAgeGroup("25-34");
-          setVoiceLoading(false);
           setSelectedCall({ ...call, transcript: call.transcript || [] });
         }} />
       )}
