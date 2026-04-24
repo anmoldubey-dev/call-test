@@ -126,10 +126,8 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const mediaRecorderRef    = useRef(null);
   const recordingChunksRef  = useRef([]);
   const consentTimerRef     = useRef(null);   // auto-record timer if no response
-  const audioCtxRef         = useRef(null);   // [Recording] AudioContext for mixing both sides
-  const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination node
   const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
-  const micStreamRef        = useRef(null);   // [Recording] separate mic stream (keeps LiveKit AEC intact)
+  const micStreamRef        = useRef(null);   // [Recording] dedicated mic stream, isolated from call pipeline
   const remoteAudioCtxRef  = useRef(null);   // [Echo fix] shared AudioContext for remote audio playback
   const remoteAudioGainMap = useRef({});     // [Echo fix] maps track.id → GainNode for hold/mute control
 
@@ -237,11 +235,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         }
 
         setRemoteTracks(prev => ({ ...prev, [participant.identity]: track }));
-        // [Recording] wire remote track into mix if recording already started
-        const mst = track.mediaStreamTrack;
-        if (mst && audioCtxRef.current && recordingDestRef.current) {
-          try { audioCtxRef.current.createMediaStreamSource(new MediaStream([mst])).connect(recordingDestRef.current); } catch (_) {}
-        }
       }
     });
 
@@ -493,40 +486,17 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   // SECTION: CALL RECORDING
   // ---------------------------------------------------------------
 
-  // [Recording] Start capturing both sides via AudioContext mix.
-  // Uses a SEPARATE getUserMedia stream for the mic so the LiveKit
-  // WebRTC pipeline (and its AEC) is never touched.
+  // [Recording] Completely isolated from the call pipeline.
+  // Records directly from a dedicated getUserMedia stream — no AudioContext,
+  // no shared nodes with the LiveKit WebRTC pipeline.
   const _startRecording = async () => {
     try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const dest = ctx.createMediaStreamDestination();
-      audioCtxRef.current = ctx;
-      recordingDestRef.current = dest;
-
-      // Separate mic stream — completely independent of LiveKit's published track
-      try {
-        const micStream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-        });
-        micStreamRef.current = micStream;
-        ctx.createMediaStreamSource(micStream).connect(dest);
-      } catch (micErr) {
-        console.warn('[Recording] mic access denied, recording remote only:', micErr);
-      }
-
-      // Connect already-subscribed remote tracks (AI agent or other human)
-      const remotes = roomRef.current?.remoteParticipants;
-      if (remotes) {
-        for (const [, participant] of remotes) {
-          for (const [, pub] of participant.audioTrackPublications) {
-            const mst = pub.track?.mediaStreamTrack;
-            if (mst) try { ctx.createMediaStreamSource(new MediaStream([mst])).connect(dest); } catch (_) {}
-          }
-        }
-      }
-
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micStreamRef.current = stream;
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t)) || '';
-      const mr = new MediaRecorder(dest.stream, mimeType ? { mimeType } : {});
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
       recordingChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
       mr.start(1000);
@@ -537,21 +507,31 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
     }
   };
 
-  // [Recording] Patch WebM blob with correct duration (MediaRecorder omits it)
+  // [Recording] Patch WebM Duration EBML element (MediaRecorder writes 0 or omits it).
+  // Handles both Chrome (8-byte float64, size=0x88) and some browsers (4-byte float32, size=0x84).
   const _patchWebmDuration = (blob, durationMs) => new Promise(resolve => {
     const reader = new FileReader();
     reader.onload = e => {
       const buf = e.target.result;
       const bytes = new Uint8Array(buf);
-      // Find Duration element: EBML ID 0x44 0x89, size 0x88 (8-byte float64)
+      const view = new DataView(buf);
       for (let i = 0; i < bytes.length - 10; i++) {
-        if (bytes[i] === 0x44 && bytes[i + 1] === 0x89 && bytes[i + 2] === 0x88) {
-          new DataView(buf).setFloat64(i + 3, durationMs, false);
-          resolve(new Blob([buf], { type: blob.type }));
-          return;
+        if (bytes[i] === 0x44 && bytes[i + 1] === 0x89) {
+          if (bytes[i + 2] === 0x88) {
+            // 8-byte float64 (Chrome default)
+            view.setFloat64(i + 3, durationMs, false);
+            resolve(new Blob([buf], { type: blob.type }));
+            return;
+          }
+          if (bytes[i + 2] === 0x84) {
+            // 4-byte float32 (some browser versions)
+            view.setFloat32(i + 3, durationMs, false);
+            resolve(new Blob([buf], { type: blob.type }));
+            return;
+          }
         }
       }
-      resolve(blob); // element not found, return original
+      resolve(blob); // Duration element not found, return as-is
     };
     reader.onerror = () => resolve(blob);
     reader.readAsArrayBuffer(blob);
@@ -576,12 +556,9 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       } catch (e) {
         console.warn('[Recording] upload failed:', e);
       }
-      // stop separate recording mic stream and close AudioContext
+      // stop dedicated recording mic stream
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
-      audioCtxRef.current?.close();
-      audioCtxRef.current = null;
-      recordingDestRef.current = null;
     };
     mr.stop();
   };
