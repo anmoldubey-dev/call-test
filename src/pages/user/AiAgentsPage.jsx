@@ -67,7 +67,7 @@ function AiAgentsTab() {
         </p>
         <button
           onClick={toggle}
-          style={{ padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.2s', background: enabled ? 'rgba(34,197,94,0.15)' : 'var(--pur)', color: enabled ? 'var(--grn)' : '#fff', border: enabled ? '1px solid rgba(34,197,94,0.35)' : '1px solid transparent' }}
+          style={{ padding: '9px 20px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.2s', background: enabled ? 'rgba(34,197,94,0.15)' : 'var(--pur)', color: enabled ? 'var(--grn)' : '#fff', border: enabled ? '1px solid rgba(34,197,94,0.35)' : '1px solid transparent' }}
         >
           {enabled ? '✓ AI Agents Enabled' : '⚡ Enable AI Agents'}
         </button>
@@ -194,7 +194,7 @@ function TranslationTab() {
           </div>
           <button
             onClick={() => update('enabled', !cfg.enabled)}
-            style={{ padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.2s', background: cfg.enabled ? 'rgba(34,197,94,0.15)' : 'var(--pur)', color: cfg.enabled ? 'var(--grn)' : '#fff', border: cfg.enabled ? '1px solid rgba(34,197,94,0.35)' : '1px solid transparent' }}
+            style={{ padding: '9px 20px', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', transition: 'all 0.2s', background: cfg.enabled ? 'rgba(34,197,94,0.15)' : 'var(--pur)', color: cfg.enabled ? 'var(--grn)' : '#fff', border: cfg.enabled ? '1px solid rgba(34,197,94,0.35)' : '1px solid transparent' }}
           >
             {cfg.enabled ? '✓ Enabled' : 'Enable'}
           </button>

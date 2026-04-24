@@ -126,6 +126,8 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const mediaRecorderRef    = useRef(null);
   const recordingChunksRef  = useRef([]);
   const consentTimerRef     = useRef(null);   // auto-record timer if no response
+  const audioCtxRef         = useRef(null);   // [Recording] AudioContext for mixing both sides
+  const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination node
 
   // ---------------------------------------------------------------
   // SECTION: STABLE REFERENCE SYNC
@@ -203,6 +205,11 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       if (pub.track?.kind === Track.Kind.Audio) {
         setLocalTrack(pub.track);
         addLog('🎙 Microphone live');
+        // [Recording] wire local mic into mix if recording already started
+        const mst = pub.track?.mediaStreamTrack;
+        if (mst && audioCtxRef.current && recordingDestRef.current) {
+          try { audioCtxRef.current.createMediaStreamSource(new MediaStream([mst])).connect(recordingDestRef.current); } catch (_) {}
+        }
       }
     });
 
@@ -213,6 +220,11 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         el.autoplay = true;
         document.body.appendChild(el);
         setRemoteTracks(prev => ({ ...prev, [participant.identity]: track }));
+        // [Recording] wire remote track into mix if recording already started
+        const mst = track.mediaStreamTrack;
+        if (mst && audioCtxRef.current && recordingDestRef.current) {
+          try { audioCtxRef.current.createMediaStreamSource(new MediaStream([mst])).connect(recordingDestRef.current); } catch (_) {}
+        }
       }
     });
 
@@ -446,17 +458,41 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   // SECTION: CALL RECORDING
   // ---------------------------------------------------------------
 
-  // [Recording] Start capturing mic audio via MediaRecorder
-  const _startRecording = async () => {
+  // [Recording] Start capturing both caller + agent audio via AudioContext mix
+  const _startRecording = () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const dest = ctx.createMediaStreamDestination();
+      audioCtxRef.current = ctx;
+      recordingDestRef.current = dest;
+
+      // Connect already-published local mic tracks
+      const localPubs = roomRef.current?.localParticipant?.audioTrackPublications;
+      if (localPubs) {
+        for (const [, pub] of localPubs) {
+          const mst = pub.track?.mediaStreamTrack;
+          if (mst) try { ctx.createMediaStreamSource(new MediaStream([mst])).connect(dest); } catch (_) {}
+        }
+      }
+      // Connect already-subscribed remote tracks (AI agent or other human)
+      const remotes = roomRef.current?.remoteParticipants;
+      if (remotes) {
+        for (const [, participant] of remotes) {
+          for (const [, pub] of participant.audioTrackPublications) {
+            const mst = pub.track?.mediaStreamTrack;
+            if (mst) try { ctx.createMediaStreamSource(new MediaStream([mst])).connect(dest); } catch (_) {}
+          }
+        }
+      }
+
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+      const mr = new MediaRecorder(dest.stream, mimeType ? { mimeType } : {});
       recordingChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
-      mr.start(1000); // collect chunks every 1s
+      mr.start(1000);
       mediaRecorderRef.current = mr;
     } catch (e) {
-      console.warn('[Recording] MediaRecorder start failed:', e);
+      console.warn('[Recording] start failed:', e);
     }
   };
 
@@ -477,8 +513,10 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       } catch (e) {
         console.warn('[Recording] upload failed:', e);
       }
-      // stop all mic tracks
-      mr.stream?.getTracks().forEach(t => t.stop());
+      // close AudioContext and release refs
+      audioCtxRef.current?.close();
+      audioCtxRef.current = null;
+      recordingDestRef.current = null;
     };
     mr.stop();
   };
@@ -597,6 +635,35 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   return (
     <div style={{ display: 'flex', gap: '20px', height: '100%' }}>
 
+      {/* [Recording] Consent popup — shown once when call connects */}
+      {connected && recordingConsent === null && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#0e1419', border: '1px solid rgba(99,102,241,0.45)', borderRadius: '16px', padding: '32px', width: '360px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>🎙</div>
+            <h3 style={{ color: '#e8f0f8', fontSize: '16px', fontWeight: 700, margin: '0 0 10px' }}>Record this call?</h3>
+            <p style={{ color: '#5a7a9a', fontSize: '12px', lineHeight: 1.7, margin: '0 0 24px' }}>
+              This call may be recorded for quality and training purposes.<br />
+              If no choice is made, recording starts automatically in 15s.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleConsentDeny}
+                style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Deny
+              </button>
+              <button
+                onClick={handleConsentAdmit}
+                style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Allow Recording
+              </button>
+            </div>
+            <p style={{ color: '#3a4a5a', fontSize: '10px', margin: '14px 0 0' }}>Auto-records in 15s if no response</p>
+          </div>
+        </div>
+      )}
+
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -616,6 +683,12 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
             <span style={{ fontSize: '10px', color: connected ? '#22c55e' : '#5a7a9a' }}>
               {connected ? 'Connected' : 'Connecting'}
             </span>
+            {recordingConsent === 'admitted' && mediaRecorderRef.current?.state === 'recording' && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.22)', borderRadius: 4, padding: '2px 7px', marginLeft: 4, fontWeight: 700 }}>
+                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f87171', animation: 'recPulse 1s ease-in-out infinite' }} />
+                REC
+              </span>
+            )}
           </div>
         </div>
 
@@ -931,6 +1004,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         </div>
       </div>
 
+      <style>{`@keyframes recPulse { 0%,100%{opacity:1}50%{opacity:0.2} }`}</style>
     </div>
   );
 }

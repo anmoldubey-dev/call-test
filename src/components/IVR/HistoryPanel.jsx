@@ -282,7 +282,7 @@ export default function HistoryPanel({ showDateFilter = true }) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                {['Caller', 'Agent', 'Department', 'Duration', 'Status', 'Sentiment', 'Date', 'Start', 'End', ''].map(h => (
+                {['Caller', 'Agent', 'Department', 'Duration', 'Status', 'Sentiment', 'Date', 'Start', 'End', 'Recording', ''].map(h => (
                   <th key={h} style={{ padding: '10px 14px', fontSize: '9px', color: '#5a7a9a', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'left', fontWeight: 500 }}>{h}</th>
                 ))}
               </tr>
@@ -311,6 +311,12 @@ export default function HistoryPanel({ showDateFilter = true }) {
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{formatDateOnly(c.created_at)}</td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{formatTimeOnly(c.created_at)}</td>
                   <td style={{ padding: '10px 14px', fontSize: '10px', color: '#5a7a9a' }}>{c.ended_at ? formatTimeOnly(c.ended_at) : '—'}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {c.recording_url
+                      ? <audio controls src={c.recording_url} style={{ height: 28, width: 170 }} />
+                      : <span style={{ fontSize: '10px', color: '#5a7a9a' }}>—</span>
+                    }
+                  </td>
                   <td style={{ padding: '10px 14px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => setTranscript(c)} style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '6px', padding: '3px 9px', fontSize: '10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>

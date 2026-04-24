@@ -166,7 +166,7 @@ const CallLogsPage = () => {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--bdr)", background: "var(--bg2)" }}>
-                {["Phone", "Status", "Duration", "Cost", "Date"].map(h => (
+                {["Phone", "Status", "Duration", "Cost", "Date", "Recording"].map(h => (
                   <th key={h} style={{ padding: "14px 20px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--lbl)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                     {h}
                   </th>
@@ -203,6 +203,12 @@ const CallLogsPage = () => {
                   </td>
                   <td style={{ padding: "16px 20px", fontSize: 13, color: "var(--txt2)" }}>
                     {formatDate(call.created_at)}
+                  </td>
+                  <td style={{ padding: "16px 20px" }}>
+                    {call.recording_url
+                      ? <audio controls src={call.recording_url} style={{ height: 28, width: 160 }} />
+                      : <span style={{ fontSize: 12, color: "var(--txt2)" }}>—</span>
+                    }
                   </td>
                 </tr>
               ))}

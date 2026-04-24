@@ -124,6 +124,16 @@ function CallModal({ call, onClose }) {
             </div>
           )}
 
+          <div style={{ marginTop: 14, padding: "12px 14px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--bdr)" }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
+              🎙 Recording
+            </p>
+            {(call.recordingUrl || call.recording_url)
+              ? <audio controls src={call.recordingUrl || call.recording_url} style={{ width: "100%" }} />
+              : <p style={{ fontSize: 12, color: "var(--txt2)", margin: 0 }}>No recording available.</p>
+            }
+          </div>
+
           <div style={{ marginTop: 10, padding: "12px 14px", background: "var(--bg)", borderRadius: 8, border: "1px solid var(--bdr)" }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: "var(--txt2)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>
               📄 Transcript
@@ -149,8 +159,8 @@ export default function CallTable({ calls, full = false }) {
 
   // Logic Branch -> cols calculation: Determines operational data depth based on 'full' flag
   const cols = full
-    ? ["Time", "Direction", "From", "To", "Duration", "Status", "Category", "Sentiment", "Cost", ""]
-    : ["Time", "From", "Duration", "Status", "Category", ""];
+    ? ["Time", "Direction", "From", "To", "Duration", "Status", "Category", "Sentiment", "Cost", "Recording", ""]
+    : ["Time", "From", "Duration", "Status", "Category", "Recording", ""];
 
   // ---------------------------------------------------------------
   // SECTION: PRIMARY RENDER (JSX)
@@ -207,6 +217,12 @@ export default function CallTable({ calls, full = false }) {
                   </td>
                 )}
                 {full && <td style={td}>{c.cost != null ? `$${Number(c.cost).toFixed(4)}` : "—"}</td>}
+                <td style={td}>
+                  {(c.recordingUrl || c.recording_url)
+                    ? <audio controls src={c.recordingUrl || c.recording_url} style={{ height: 26, width: 140 }} />
+                    : <span style={{ fontSize: 11, color: "var(--txt2)" }}>—</span>
+                  }
+                </td>
                 <td style={td}>
                   <button
                     onClick={() => setSelectedCall(c)}
