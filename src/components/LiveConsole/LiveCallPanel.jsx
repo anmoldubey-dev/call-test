@@ -121,13 +121,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const [srStatus, setSrStatus] = useState('idle'); // 'idle' | 'active' | 'error'
   const [interimText, setInterimText] = useState('');    // live in-progress words
 
-  // [Recording] consent: null=awaiting, 'admitted', 'denied'
-  const [recordingConsent, setRecordingConsent] = useState(null);
-  const mediaRecorderRef    = useRef(null);
-  const recordingChunksRef  = useRef([]);
-  const consentTimerRef     = useRef(null);   // auto-record timer if no response
-  const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
-  const micStreamRef        = useRef(null);   // [Recording] dedicated mic stream, isolated from call pipeline
   const remoteAudioCtxRef  = useRef(null);   // [Echo fix] shared AudioContext for remote audio playback
   const remoteAudioGainMap = useRef({});     // [Echo fix] maps track.id → GainNode for hold/mute control
 
@@ -483,131 +476,12 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   }, [sessionToken]);
 
   // ---------------------------------------------------------------
-  // SECTION: CALL RECORDING
-  // ---------------------------------------------------------------
-
-  // [Recording] Completely isolated from the call pipeline.
-  // Records directly from a dedicated getUserMedia stream — no AudioContext,
-  // no shared nodes with the LiveKit WebRTC pipeline.
-  const _startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      micStreamRef.current = stream;
-      const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t)) || '';
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
-      recordingChunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
-      mr.start(1000);
-      mediaRecorderRef.current = mr;
-      recordingStartRef.current = Date.now();
-    } catch (e) {
-      console.warn('[Recording] start failed:', e);
-    }
-  };
-
-  // [Recording] Patch WebM Duration EBML element (MediaRecorder writes 0 or omits it).
-  // Handles both Chrome (8-byte float64, size=0x88) and some browsers (4-byte float32, size=0x84).
-  const _patchWebmDuration = (blob, durationMs) => new Promise(resolve => {
-    const reader = new FileReader();
-    reader.onload = e => {
-      const buf = e.target.result;
-      const bytes = new Uint8Array(buf);
-      const view = new DataView(buf);
-      for (let i = 0; i < bytes.length - 10; i++) {
-        if (bytes[i] === 0x44 && bytes[i + 1] === 0x89) {
-          if (bytes[i + 2] === 0x88) {
-            // 8-byte float64 (Chrome default)
-            view.setFloat64(i + 3, durationMs, false);
-            resolve(new Blob([buf], { type: blob.type }));
-            return;
-          }
-          if (bytes[i + 2] === 0x84) {
-            // 4-byte float32 (some browser versions)
-            view.setFloat32(i + 3, durationMs, false);
-            resolve(new Blob([buf], { type: blob.type }));
-            return;
-          }
-        }
-      }
-      resolve(blob); // Duration element not found, return as-is
-    };
-    reader.onerror = () => resolve(blob);
-    reader.readAsArrayBuffer(blob);
-  });
-
-  // [Recording] Stop and upload blob to backend
-  const _stopAndUpload = (sessionId, consent) => {
-    const mr = mediaRecorderRef.current;
-    if (!mr || mr.state === 'inactive') return;
-    const durationMs = recordingStartRef.current ? Date.now() - recordingStartRef.current : 0;
-    mr.onstop = async () => {
-      try {
-        const rawBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-        if (rawBlob.size < 1000) return;
-        const blob = durationMs > 0 ? await _patchWebmDuration(rawBlob, durationMs) : rawBlob;
-        const form = new FormData();
-        form.append('file', blob, `${sessionId}.webm`);
-        await fetch(
-          `${API_BASE}/webrtc/recording/upload?session_id=${encodeURIComponent(sessionId)}&consent=${consent}`,
-          { method: 'POST', body: form },
-        );
-      } catch (e) {
-        console.warn('[Recording] upload failed:', e);
-      }
-      // stop dedicated recording mic stream
-      micStreamRef.current?.getTracks().forEach(t => t.stop());
-      micStreamRef.current = null;
-    };
-    mr.stop();
-  };
-
-  // [Recording] Show consent popup when call connects; auto-admit after 15s if no response
-  useEffect(() => {
-    if (!connected) return;
-    setRecordingConsent(null); // reset on each new connection
-    // auto-record after 15s if agent doesn't respond
-    consentTimerRef.current = setTimeout(async () => {
-      setRecordingConsent('admitted');
-      await _startRecording();
-    }, 15000);
-    return () => clearTimeout(consentTimerRef.current);
-  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // [Recording] Handle Admit click
-  const handleConsentAdmit = async () => {
-    clearTimeout(consentTimerRef.current);
-    setRecordingConsent('admitted');
-    await _startRecording();
-  };
-
-  // [Recording] Handle Deny click — save consent to backend, no recording
-  const handleConsentDeny = async () => {
-    clearTimeout(consentTimerRef.current);
-    setRecordingConsent('denied');
-    const sid = livekitSession?.room || backendCallId || '';
-    try {
-      await fetch(`${API_BASE}/webrtc/recording/consent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: sid, consent: 'denied' }),
-      });
-    } catch (_) {}
-  };
-
-  // ---------------------------------------------------------------
   // SECTION: ACTION HANDLERS
   // ---------------------------------------------------------------
 
   // Action Trigger -> handleEndCall()-> Terminates signaling room and backend call session
   // Keep ref fresh so room event listeners always call the latest version
   const handleEndCall = handleEndCallRef.current = async () => {
-    // [Recording] stop and upload before disconnecting
-    const sid = livekitSession?.room || backendCallId || '';
-    if (mediaRecorderRef.current?.state !== 'inactive') {
-      _stopAndUpload(sid, 'admitted');
-    }
     connectedRef.current = false;
     roomRef.current?.disconnect();
     if (backendCallId) {
@@ -677,35 +551,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   return (
     <div style={{ display: 'flex', gap: '20px', height: '100%' }}>
 
-      {/* [Recording] Consent popup — shown once when call connects */}
-      {connected && recordingConsent === null && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9000, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#0e1419', border: '1px solid rgba(99,102,241,0.45)', borderRadius: '16px', padding: '32px', width: '360px', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
-            <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', fontSize: 22 }}>🎙</div>
-            <h3 style={{ color: '#e8f0f8', fontSize: '16px', fontWeight: 700, margin: '0 0 10px' }}>Record this call?</h3>
-            <p style={{ color: '#5a7a9a', fontSize: '12px', lineHeight: 1.7, margin: '0 0 24px' }}>
-              This call may be recorded for quality and training purposes.<br />
-              If no choice is made, recording starts automatically in 15s.
-            </p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button
-                onClick={handleConsentDeny}
-                style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Deny
-              </button>
-              <button
-                onClick={handleConsentAdmit}
-                style={{ flex: 1, padding: '11px', borderRadius: '9px', background: 'rgba(34,197,94,0.12)', color: '#4ade80', border: '1px solid rgba(34,197,94,0.3)', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                Allow Recording
-              </button>
-            </div>
-            <p style={{ color: '#3a4a5a', fontSize: '10px', margin: '14px 0 0' }}>Auto-records in 15s if no response</p>
-          </div>
-        </div>
-      )}
-
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -725,12 +570,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
             <span style={{ fontSize: '10px', color: connected ? '#22c55e' : '#5a7a9a' }}>
               {connected ? 'Connected' : 'Connecting'}
             </span>
-            {recordingConsent === 'admitted' && mediaRecorderRef.current?.state === 'recording' && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 9, color: '#f87171', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.22)', borderRadius: 4, padding: '2px 7px', marginLeft: 4, fontWeight: 700 }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#f87171', animation: 'recPulse 1s ease-in-out infinite' }} />
-                REC
-              </span>
-            )}
           </div>
         </div>
 
@@ -1046,7 +885,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         </div>
       </div>
 
-      <style>{`@keyframes recPulse { 0%,100%{opacity:1}50%{opacity:0.2} }`}</style>
     </div>
   );
 }

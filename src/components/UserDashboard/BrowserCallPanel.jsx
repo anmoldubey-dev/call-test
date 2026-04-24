@@ -39,6 +39,8 @@ const LANGUAGES = [
   { code: 'te', label: 'Telugu' },
 ];
 
+const _REC_API = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') + '/api';
+
 // ---------------------------------------------------------------
 // SECTION: MAIN PANEL COMPONENT
 // ---------------------------------------------------------------
@@ -62,9 +64,14 @@ export default function BrowserCallPanel() {
   const [isMuted, setIsMuted] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
 
-  // [Recording] consent: null=awaiting, 'admitted', 'denied'
+  // [Recording] — completely isolated from the browser call pipeline
   const [recordingConsent, setRecordingConsent] = useState(null);
-  const consentTimerRef = useRef(null);
+  const consentTimerRef     = useRef(null);
+  const mediaRecorderRef    = useRef(null);
+  const recordingChunksRef  = useRef([]);
+  const recordingStartRef   = useRef(null);
+  const micStreamRef        = useRef(null);
+  const recordingSessionRef = useRef('');
 
 
   // ---------------------------------------------------------------
@@ -84,31 +91,93 @@ export default function BrowserCallPanel() {
     return () => clearInterval(interval);
   }, [canEndCall]);
 
-  // [Recording] Show consent popup when call connects; auto-admit after 15s if no response
+  // [Recording] Show consent popup when call connects; auto-record after 15s if no response
   useEffect(() => {
     if (!canEndCall) return;
     setRecordingConsent(null);
     consentTimerRef.current = setTimeout(() => {
       setRecordingConsent('admitted');
+      _startRecording();
     }, 15000);
     return () => clearTimeout(consentTimerRef.current);
-  }, [canEndCall]);
+  }, [canEndCall]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // [Recording] Stop and upload when call ends
+  useEffect(() => {
+    if (canEndCall) return; // call still active
+    if (mediaRecorderRef.current?.state !== 'inactive') {
+      _stopAndUpload();
+    }
+  }, [canEndCall]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const _startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      micStreamRef.current = stream;
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      recordingChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
+      mr.start(1000);
+      mediaRecorderRef.current = mr;
+      recordingStartRef.current = Date.now();
+    } catch (e) { console.warn('[Recording] start failed:', e); }
+  };
+
+  const _patchWebmDuration = (blob, durationMs) => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const buf = e.target.result;
+      const bytes = new Uint8Array(buf);
+      const view = new DataView(buf);
+      for (let i = 0; i < bytes.length - 10; i++) {
+        if (bytes[i] === 0x44 && bytes[i + 1] === 0x89) {
+          if (bytes[i + 2] === 0x88) { view.setFloat64(i + 3, durationMs, false); resolve(new Blob([buf], { type: blob.type })); return; }
+          if (bytes[i + 2] === 0x84) { view.setFloat32(i + 3, durationMs, false); resolve(new Blob([buf], { type: blob.type })); return; }
+        }
+      }
+      resolve(blob);
+    };
+    reader.onerror = () => resolve(blob);
+    reader.readAsArrayBuffer(blob);
+  });
+
+  const _stopAndUpload = () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr || mr.state === 'inactive') return;
+    const durationMs = recordingStartRef.current ? Date.now() - recordingStartRef.current : 0;
+    const sid = recordingSessionRef.current || livekitSession?.room || 'rec-unknown';
+    mr.onstop = async () => {
+      try {
+        const rawBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+        if (rawBlob.size < 1000) return;
+        const blob = durationMs > 0 ? await _patchWebmDuration(rawBlob, durationMs) : rawBlob;
+        const form = new FormData();
+        form.append('file', blob, `${sid}.webm`);
+        await fetch(
+          `${_REC_API}/webrtc/recording/upload?session_id=${encodeURIComponent(sid)}&consent=admitted`,
+          { method: 'POST', body: form },
+        );
+      } catch (e) { console.warn('[Recording] upload failed:', e); }
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
+    };
+    mr.stop();
+  };
 
   const handleConsentAdmit = () => {
     clearTimeout(consentTimerRef.current);
     setRecordingConsent('admitted');
-    const sid = livekitSession?.room || '';
-    fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')}/api/webrtc/recording/consent`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sid, consent: 'admitted' }),
-    }).catch(() => {});
+    _startRecording();
   };
 
   const handleConsentDeny = () => {
     clearTimeout(consentTimerRef.current);
     setRecordingConsent('denied');
-    const sid = livekitSession?.room || '';
-    fetch(`${(import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '')}/api/webrtc/recording/consent`, {
+    const sid = recordingSessionRef.current || livekitSession?.room || '';
+    fetch(`${_REC_API}/webrtc/recording/consent`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sid, consent: 'denied' }),
     }).catch(() => {});
@@ -146,9 +215,10 @@ export default function BrowserCallPanel() {
       setLivekitSession({
         token: lkData.token || "demo-token",
         url: lkData.url || "ws://localhost",
-        room: lkData.room || "demo-room",
+        room: lkData.room || lkData.room_name || "demo-room",
         agentName: lkData.agent_name || "SR AI Agent",
       });
+      recordingSessionRef.current = lkData.room || lkData.room_name || lkData.session_id || '';
 
       setDialNumber(name.trim());
 
@@ -245,11 +315,17 @@ export default function BrowserCallPanel() {
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '20px', padding: '6px 14px' }}>
-          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', animation: 'pulse-dot 1.5s infinite' }} />
-          <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 500, letterSpacing: '0.5px' }}>
-            SECURE WEBRTC LINK
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.2)', borderRadius: '20px', padding: '6px 14px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#22c55e', animation: 'pulse-dot 1.5s infinite' }} />
+            <span style={{ fontSize: '11px', color: '#4ade80', fontWeight: 500, letterSpacing: '0.5px' }}>SECURE WEBRTC LINK</span>
+          </div>
+          {recordingConsent === 'admitted' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '20px', padding: '6px 12px' }}>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#f87171', display: 'inline-block', animation: 'pulse-dot 1s infinite' }} />
+              <span style={{ fontSize: '11px', color: '#f87171', fontWeight: 600, letterSpacing: '0.5px' }}>REC</span>
+            </div>
+          )}
         </div>
 
         <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', height: '120px', width: '100%' }}>
