@@ -129,6 +129,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const audioCtxRef         = useRef(null);   // [Recording] AudioContext for mixing both sides
   const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination node
   const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
+  const micStreamRef        = useRef(null);   // [Recording] separate mic stream (keeps LiveKit AEC intact)
 
   // ---------------------------------------------------------------
   // SECTION: STABLE REFERENCE SYNC
@@ -206,11 +207,6 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       if (pub.track?.kind === Track.Kind.Audio) {
         setLocalTrack(pub.track);
         addLog('🎙 Microphone live');
-        // [Recording] wire local mic into mix if recording already started
-        const mst = pub.track?.mediaStreamTrack;
-        if (mst && audioCtxRef.current && recordingDestRef.current) {
-          try { audioCtxRef.current.createMediaStreamSource(new MediaStream([mst])).connect(recordingDestRef.current); } catch (_) {}
-        }
       }
     });
 
@@ -326,7 +322,11 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         setConnected(true);
         setCallState(CALL_STATES.CONNECTED);
         refreshParticipants(room);
-        await room.localParticipant.setMicrophoneEnabled(true);
+        await room.localParticipant.setMicrophoneEnabled(true, {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
       } catch (e) {
         if (isMounted) addLog(`✕ Connection error: ${e.message}`);
       }
@@ -459,22 +459,27 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   // SECTION: CALL RECORDING
   // ---------------------------------------------------------------
 
-  // [Recording] Start capturing both caller + agent audio via AudioContext mix
-  const _startRecording = () => {
+  // [Recording] Start capturing both sides via AudioContext mix.
+  // Uses a SEPARATE getUserMedia stream for the mic so the LiveKit
+  // WebRTC pipeline (and its AEC) is never touched.
+  const _startRecording = async () => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
       const dest = ctx.createMediaStreamDestination();
       audioCtxRef.current = ctx;
       recordingDestRef.current = dest;
 
-      // Connect already-published local mic tracks
-      const localPubs = roomRef.current?.localParticipant?.audioTrackPublications;
-      if (localPubs) {
-        for (const [, pub] of localPubs) {
-          const mst = pub.track?.mediaStreamTrack;
-          if (mst) try { ctx.createMediaStreamSource(new MediaStream([mst])).connect(dest); } catch (_) {}
-        }
+      // Separate mic stream — completely independent of LiveKit's published track
+      try {
+        const micStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+        micStreamRef.current = micStream;
+        ctx.createMediaStreamSource(micStream).connect(dest);
+      } catch (micErr) {
+        console.warn('[Recording] mic access denied, recording remote only:', micErr);
       }
+
       // Connect already-subscribed remote tracks (AI agent or other human)
       const remotes = roomRef.current?.remoteParticipants;
       if (remotes) {
@@ -537,7 +542,9 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       } catch (e) {
         console.warn('[Recording] upload failed:', e);
       }
-      // close AudioContext and release refs
+      // stop separate recording mic stream and close AudioContext
+      micStreamRef.current?.getTracks().forEach(t => t.stop());
+      micStreamRef.current = null;
       audioCtxRef.current?.close();
       audioCtxRef.current = null;
       recordingDestRef.current = null;
