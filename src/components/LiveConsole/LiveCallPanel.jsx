@@ -128,6 +128,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const consentTimerRef     = useRef(null);   // auto-record timer if no response
   const audioCtxRef         = useRef(null);   // [Recording] AudioContext for mixing both sides
   const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination node
+  const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
 
   // ---------------------------------------------------------------
   // SECTION: STABLE REFERENCE SYNC
@@ -491,19 +492,42 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
       mr.start(1000);
       mediaRecorderRef.current = mr;
+      recordingStartRef.current = Date.now();
     } catch (e) {
       console.warn('[Recording] start failed:', e);
     }
   };
 
+  // [Recording] Patch WebM blob with correct duration (MediaRecorder omits it)
+  const _patchWebmDuration = (blob, durationMs) => new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const buf = e.target.result;
+      const bytes = new Uint8Array(buf);
+      // Find Duration element: EBML ID 0x44 0x89, size 0x88 (8-byte float64)
+      for (let i = 0; i < bytes.length - 10; i++) {
+        if (bytes[i] === 0x44 && bytes[i + 1] === 0x89 && bytes[i + 2] === 0x88) {
+          new DataView(buf).setFloat64(i + 3, durationMs, false);
+          resolve(new Blob([buf], { type: blob.type }));
+          return;
+        }
+      }
+      resolve(blob); // element not found, return original
+    };
+    reader.onerror = () => resolve(blob);
+    reader.readAsArrayBuffer(blob);
+  });
+
   // [Recording] Stop and upload blob to backend
   const _stopAndUpload = (sessionId, consent) => {
     const mr = mediaRecorderRef.current;
     if (!mr || mr.state === 'inactive') return;
+    const durationMs = recordingStartRef.current ? Date.now() - recordingStartRef.current : 0;
     mr.onstop = async () => {
       try {
-        const blob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
-        if (blob.size < 1000) return; // skip empty / near-empty recordings
+        const rawBlob = new Blob(recordingChunksRef.current, { type: 'audio/webm' });
+        if (rawBlob.size < 1000) return;
+        const blob = durationMs > 0 ? await _patchWebmDuration(rawBlob, durationMs) : rawBlob;
         const form = new FormData();
         form.append('file', blob, `${sessionId}.webm`);
         await fetch(
