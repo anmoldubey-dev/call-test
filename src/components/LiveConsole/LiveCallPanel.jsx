@@ -130,6 +130,8 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination node
   const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
   const micStreamRef        = useRef(null);   // [Recording] separate mic stream (keeps LiveKit AEC intact)
+  const remoteAudioCtxRef  = useRef(null);   // [Echo fix] shared AudioContext for remote audio playback
+  const remoteAudioGainMap = useRef({});     // [Echo fix] maps track.id → GainNode for hold/mute control
 
   // ---------------------------------------------------------------
   // SECTION: STABLE REFERENCE SYNC
@@ -213,9 +215,27 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
     room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
       if (track.kind === Track.Kind.Audio) {
         addLog(`🔊 Audio from ${participant.name || participant.identity}`);
+        // Keep LiveKit's internal track management intact
         const el = track.attach();
-        el.autoplay = true;
+        el.muted = true; // mute HTML element — Web Audio handles actual playback
         document.body.appendChild(el);
+
+        // Route through Web Audio so Chrome's AEC has a consistent reference signal
+        try {
+          if (!remoteAudioCtxRef.current) {
+            remoteAudioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+          }
+          const rCtx = remoteAudioCtxRef.current;
+          rCtx.resume().catch(() => {});
+          const src  = rCtx.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+          const gain = rCtx.createGain();
+          src.connect(gain);
+          gain.connect(rCtx.destination);
+          remoteAudioGainMap.current[track.mediaStreamTrack.id] = gain;
+        } catch (_) {
+          el.muted = false; // fallback: let HTML element play if Web Audio fails
+        }
+
         setRemoteTracks(prev => ({ ...prev, [participant.identity]: track }));
         // [Recording] wire remote track into mix if recording already started
         const mst = track.mediaStreamTrack;
@@ -227,6 +247,12 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
 
     room.on(RoomEvent.TrackUnsubscribed, (track) => {
       track.detach().forEach(el => el.remove());
+      // Clean up Web Audio gain node for this track
+      const gain = remoteAudioGainMap.current[track.mediaStreamTrack?.id];
+      if (gain) {
+        try { gain.disconnect(); } catch (_) {}
+        delete remoteAudioGainMap.current[track.mediaStreamTrack.id];
+      }
     });
 
     // Sub-process -> DataReceived Handler: Ingests real-time caller transcription from data channel
@@ -336,6 +362,9 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       isMounted = false;
       room.disconnect();
       connectedRef.current = false;
+      remoteAudioCtxRef.current?.close();
+      remoteAudioCtxRef.current = null;
+      remoteAudioGainMap.current = {};
     };
   }, [livekitSession?.token, livekitSession?.room]);
 
@@ -346,11 +375,16 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
     roomRef.current.localParticipant?.setMicrophoneEnabled(!isMuted && !isHeld).catch(() => { });
   }, [isMuted, isHeld]);
 
-  // Sub-process -> hold audio sync: Mute/unmute remote audio elements when hold state changes
+  // Sub-process -> hold audio sync: silence/restore remote audio on hold
   useEffect(() => {
-    // Find all audio elements attached by LiveKit and toggle their mute
-    const audioEls = document.querySelectorAll('audio[autoplay]');
-    audioEls.forEach(el => { el.muted = isHeld; });
+    const gainNodes = Object.values(remoteAudioGainMap.current);
+    if (gainNodes.length > 0) {
+      // Web Audio path: set gain to 0 on hold, 1 on resume
+      gainNodes.forEach(g => { g.gain.value = isHeld ? 0 : 1; });
+    } else {
+      // Fallback: mute HTML audio elements if Web Audio isn't set up
+      document.querySelectorAll('audio[autoplay]').forEach(el => { el.muted = isHeld; });
+    }
     if (isHeld) {
       addLog('⏸ Call placed on hold');
     } else if (connected) {
