@@ -57,7 +57,7 @@ export function Agents() {
         return res.json();
       })
       .then(data => {
-        setDbAgents(data.agents || []);
+        setDbAgents(data.bubbleAgents || []);
         if (!isSilent) setLoading(false);
       })
       .catch(err => {
@@ -198,7 +198,7 @@ export function Agents() {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-sm ${getStatusColor("Active")}`}>Active</span>
+                      <span className={`text-sm ${getStatusColor(agent.status)}`}>{agent.status || "Offline"}</span>
                     </td>
                     <td className="px-6 py-4">
                       <span className="text-sm text-slate-300">{agent.skillLevel || "N/A"}</span>
