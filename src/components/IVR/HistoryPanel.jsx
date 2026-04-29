@@ -302,7 +302,7 @@ export default function HistoryPanel({ showDateFilter = true }) {
                       border: `1px solid ${c.direction === 'outbound' ? 'rgba(139,92,246,0.2)' : 'rgba(34,197,94,0.2)'}`,
                       textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600,
                     }}>
-                      {c.direction === 'outbound' ? '↑ Out' : '↓ In'}
+                      {c.direction === 'outbound' ? 'Out' : 'In'}
                     </span>
                   </td>
                   <td style={{ padding: '10px 14px', fontSize: '11px', color: '#8899aa' }}>{c.agent_name || '—'}</td>
