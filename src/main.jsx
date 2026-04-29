@@ -8,7 +8,9 @@ import './styles/global.css'
 const _origFetch = window.fetch;
 window.fetch = (input, init = {}) => {
   const url = typeof input === 'string' ? input : input?.url || '';
-  if (url.includes('ngrok') || url.includes(import.meta.env.VITE_API_URL || '')) {
+  const apiUrl = import.meta.env.VITE_API_URL || '';
+  const isBackend = url.includes('ngrok') || (apiUrl && url.includes(apiUrl));
+  if (isBackend) {
     init.headers = { 'ngrok-skip-browser-warning': 'true', ...(init.headers || {}) };
   }
   return _origFetch(input, init);
