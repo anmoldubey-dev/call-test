@@ -167,7 +167,7 @@ function TranscriptModal({ callId, callerNumber, onClose }) {
 // ---------------------------------------------------------------
 
 // Initialization -> HistoryPanel()-> Main functional entry point for the call auditing interface
-export default function HistoryPanel({ showDateFilter = true }) {
+export default function HistoryPanel({ showDateFilter = true, autoRefresh = true }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -196,14 +196,11 @@ export default function HistoryPanel({ showDateFilter = true }) {
   // Har 5 second mein chup-chaap data refresh hoga
   // Lifecycle -> Auto-refresh: Orchestrates 5s silent polling for real-time history synchronization
   useEffect(() => {
-    load(); // Initial load with loader
-
-    const interval = setInterval(() => {
-      load(true); // Silent background load every 5 seconds
-    }, 5000);
-
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, []);
+    load();
+    if (!autoRefresh) return;
+    const interval = setInterval(() => load(true), 5000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
 
   // Action Trigger -> handleDelete()-> Dispatches deletion request for targeted session record
   const handleDelete = async (id) => {

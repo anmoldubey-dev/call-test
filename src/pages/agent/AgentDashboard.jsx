@@ -280,7 +280,7 @@ export default function AgentDashboard() {
       case "broadcast":    return <BroadcastPanel />;
       case "active-calls": return <ActiveCallsPanel />;
       case "ivr-builder":  return <IVRBuilderPanel />;
-      case "calls":        return <HistoryPanel />;
+      case "calls":        return <HistoryPanel autoRefresh={false} />;
       case "queue-monitor": return <QueueMonitor />;
       case "phone-call":   return <div style={{padding: 40, color: '#94a3b8', textAlign: 'center', fontSize: '18px', fontWeight: 'bold'}}>📞 Phone Dialer UI Coming Soon...</div>;
       default:             return <OverviewTab   stats={stats}   calls={calls}   chartsReady={chartsReady} />;
