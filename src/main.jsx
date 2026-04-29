@@ -9,7 +9,10 @@ const _origFetch = window.fetch;
 window.fetch = (input, init = {}) => {
   const url = typeof input === 'string' ? input : input?.url || '';
   const apiUrl = import.meta.env.VITE_API_URL || '';
-  const isBackend = url.includes('ngrok') || (apiUrl && url.includes(apiUrl));
+  const isBackend = url.includes('ngrok')
+    || (apiUrl && url.includes(apiUrl))
+    || url.startsWith('/api/')
+    || url.startsWith('/livekit/');
   if (isBackend) {
     init.headers = { 'ngrok-skip-browser-warning': 'true', ...(init.headers || {}) };
   }
