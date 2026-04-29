@@ -279,6 +279,15 @@ export default function BroadcastPanel() {
     } catch (err) { setError('Network Error: ' + err.message); } finally { setEmailSending(false); }
   };
 
+  // Action Trigger -> handleDeleteTemplate()-> Removes a template by id
+  const handleDeleteTemplate = async (id) => {
+    if (!window.confirm('Delete this template?')) return;
+    try {
+      await fetch(`${API_BASE}/api/email/templates/${id}`, { method: 'DELETE', headers: authHeadersOnly });
+      fetchEmailTemplates();
+    } catch (err) { alert('Error: ' + err.message); }
+  };
+
   // Action Trigger -> handleCreateTemplate()-> Persists a custom HTML template for future campaigns
   const handleCreateTemplate = async () => {
     if (!tplName || !tplSubject || !tplBody) { alert('Fill all template fields'); return; }
@@ -571,7 +580,10 @@ export default function BroadcastPanel() {
                       <div style={{ fontSize: '11px', color: '#5a7a9a', marginTop: '2px' }}>Subject: {t.subject}</div>
                       <span style={{ fontSize: '9px', color: '#818cf8', background: 'rgba(129,140,248,0.1)', padding: '2px 8px', borderRadius: '6px', marginTop: '4px', display: 'inline-block' }}>{t.category}</span>
                     </div>
-                    <button onClick={() => { handleTemplateSelect(t); setEmailTab('compose'); }} style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.2)', borderRadius: '8px', padding: '8px 14px', fontSize: '11px', cursor: 'pointer' }}>Use</button>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => { handleTemplateSelect(t); setEmailTab('compose'); }} style={{ background: 'rgba(129,140,248,0.1)', color: '#818cf8', border: '1px solid rgba(129,140,248,0.2)', borderRadius: '8px', padding: '8px 14px', fontSize: '11px', cursor: 'pointer' }}>Use</button>
+                      <button onClick={() => handleDeleteTemplate(t.id)} title="Delete template" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '8px 10px', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><Trash2 size={13} /></button>
+                    </div>
                   </div>
                 ))}
               </div>
