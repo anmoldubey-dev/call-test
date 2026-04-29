@@ -104,9 +104,18 @@ export default function IncomingCallNotification({ onAccept, department = "Gener
     };
 
     connectWs();
+
+    // Send heartbeat ping over the existing WebSocket every 30s — replaces HTTP polling
+    const pingInterval = setInterval(() => {
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30_000);
+
     return () => {
       isMounted = false;
       clearTimeout(reconnectTimer);
+      clearInterval(pingInterval);
       if (wsRef.current) {
         wsRef.current.onclose = null;
         wsRef.current.close();

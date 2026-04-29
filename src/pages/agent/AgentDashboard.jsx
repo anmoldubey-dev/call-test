@@ -184,11 +184,9 @@ export default function AgentDashboard() {
     };
 
     ping();
-    const id = setInterval(ping, 30_000);
     window.addEventListener("beforeunload", setOffline);     // actual tab/browser close
     document.addEventListener("visibilitychange", onVisible); // re-ping on tab focus
     return () => {
-      clearInterval(id);
       window.removeEventListener("beforeunload", setOffline);
       document.removeEventListener("visibilitychange", onVisible);
       setOffline(); // logout / route change
