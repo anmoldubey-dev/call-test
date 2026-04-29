@@ -537,7 +537,7 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
     reader.readAsArrayBuffer(blob);
   });
 
-  // [Recording] Stop, upload blob directly to Firebase Storage, then save URL to backend
+  // [Recording] Stop, upload blob directly to Cloudinary, then save URL to backend
   const _stopAndUpload = (sessionId, consent) => {
     const mr = mediaRecorderRef.current;
     if (!mr || mr.state === 'inactive') return;
@@ -548,26 +548,30 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
         if (rawBlob.size < 1000) return;
         const blob = durationMs > 0 ? await _patchWebmDuration(rawBlob, durationMs) : rawBlob;
 
-        // Step 1: get a signed Firebase upload URL from the backend
-        const urlRes = await fetch(
-          `${API_BASE}/webrtc/recording/upload-url?session_id=${encodeURIComponent(sessionId)}`,
+        // Step 1: get Cloudinary cloud_name + upload_preset from backend
+        const configRes = await fetch(`${API_BASE}/webrtc/recording/upload-url`);
+        if (!configRes.ok) throw new Error('Failed to get upload config');
+        const { cloud_name, upload_preset } = await configRes.json();
+
+        // Step 2: POST blob directly to Cloudinary (no backend file handling)
+        const safeId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const form = new FormData();
+        form.append('file', blob, `${safeId}.webm`);
+        form.append('upload_preset', upload_preset);
+        form.append('folder', 'recordings');
+        form.append('public_id', safeId);
+        const uploadRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloud_name}/auto/upload`,
+          { method: 'POST', body: form },
         );
-        if (!urlRes.ok) throw new Error('Failed to get upload URL');
-        const { upload_url, download_url } = await urlRes.json();
+        if (!uploadRes.ok) throw new Error(`Cloudinary upload failed: ${uploadRes.status}`);
+        const { secure_url } = await uploadRes.json();
 
-        // Step 2: PUT blob directly to Firebase Storage (no backend file handling)
-        const putRes = await fetch(upload_url, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'audio/webm' },
-          body: blob,
-        });
-        if (!putRes.ok) throw new Error(`Firebase upload failed: ${putRes.status}`);
-
-        // Step 3: tell backend to persist the Firebase download URL in the DB
+        // Step 3: tell backend to persist the Cloudinary URL in the DB
         await fetch(`${API_BASE}/webrtc/recording/save-url`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId, recording_url: download_url, consent }),
+          body: JSON.stringify({ session_id: sessionId, recording_url: secure_url, consent }),
         });
       } catch (e) {
         console.warn('[Recording] upload failed:', e);
