@@ -128,6 +128,9 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   const consentTimerRef     = useRef(null);   // auto-record timer if no response
   const recordingStartRef   = useRef(null);   // [Recording] timestamp when recording began
   const micStreamRef        = useRef(null);   // [Recording] dedicated mic stream, isolated from call pipeline
+  const recordingMixCtxRef  = useRef(null);   // [Recording] AudioContext that mixes both sides
+  const recordingDestRef    = useRef(null);   // [Recording] MediaStreamDestination — what gets recorded
+  const recordingRemoteSrcs = useRef({});     // [Recording] maps track.id → source node for cleanup
   const remoteAudioCtxRef  = useRef(null);   // [Echo fix] shared AudioContext for remote audio playback
   const remoteAudioGainMap = useRef({});     // [Echo fix] maps track.id → GainNode for hold/mute control
 
@@ -234,6 +237,17 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
           el.muted = false; // fallback: let HTML element play if Web Audio fails
         }
 
+        // If recording is already active, tap this new remote track into the mix too
+        if (recordingDestRef.current && recordingMixCtxRef.current && track.mediaStreamTrack) {
+          try {
+            const recSrc = recordingMixCtxRef.current.createMediaStreamSource(
+              new MediaStream([track.mediaStreamTrack])
+            );
+            recSrc.connect(recordingDestRef.current);
+            recordingRemoteSrcs.current[track.mediaStreamTrack.id] = recSrc;
+          } catch (_) {}
+        }
+
         setRemoteTracks(prev => ({ ...prev, [participant.identity]: track }));
       }
     });
@@ -245,6 +259,12 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       if (gain) {
         try { gain.disconnect(); } catch (_) {}
         delete remoteAudioGainMap.current[track.mediaStreamTrack.id];
+      }
+      // Clean up recording source node for this track
+      const recSrc = recordingRemoteSrcs.current[track.mediaStreamTrack?.id];
+      if (recSrc) {
+        try { recSrc.disconnect(); } catch (_) {}
+        delete recordingRemoteSrcs.current[track.mediaStreamTrack.id];
       }
     });
 
@@ -487,16 +507,41 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
   // ---------------------------------------------------------------
 
   // [Recording] Completely isolated from the call pipeline.
-  // Records directly from a dedicated getUserMedia stream — no AudioContext,
-  // no shared nodes with the LiveKit WebRTC pipeline.
+  // Mixes local mic + all remote LiveKit tracks into one AudioContext destination,
+  // then records that mixed stream so both sides are captured.
   const _startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      const mixCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const dest   = mixCtx.createMediaStreamDestination();
+      recordingMixCtxRef.current  = mixCtx;
+      recordingDestRef.current    = dest;
+      recordingRemoteSrcs.current = {};
+
+      // 1. Local mic → mix
+      const micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
-      micStreamRef.current = stream;
+      micStreamRef.current = micStream;
+      const localSrc = mixCtx.createMediaStreamSource(micStream);
+      localSrc.connect(dest);
+
+      // 2. All currently subscribed remote tracks → mix
+      roomRef.current?.remoteParticipants?.forEach(participant => {
+        participant.audioTrackPublications?.forEach(pub => {
+          const t = pub.track;
+          if (t?.mediaStreamTrack) {
+            try {
+              const src = mixCtx.createMediaStreamSource(new MediaStream([t.mediaStreamTrack]));
+              src.connect(dest);
+              recordingRemoteSrcs.current[t.mediaStreamTrack.id] = src;
+            } catch (_) {}
+          }
+        });
+      });
+
+      // 3. Record the mixed stream
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm'].find(t => MediaRecorder.isTypeSupported(t)) || '';
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+      const mr = new MediaRecorder(dest.stream, mimeType ? { mimeType } : {});
       recordingChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) recordingChunksRef.current.push(e.data); };
       mr.start(1000);
@@ -576,9 +621,15 @@ export default function LiveCallPanel({ onNewCallerText, lastSentiment }) {
       } catch (e) {
         console.warn('[Recording] upload failed:', e);
       }
-      // stop dedicated recording mic stream
+      // stop dedicated recording mic stream and close mix context
       micStreamRef.current?.getTracks().forEach(t => t.stop());
       micStreamRef.current = null;
+      if (recordingMixCtxRef.current) {
+        recordingMixCtxRef.current.close().catch(() => {});
+        recordingMixCtxRef.current = null;
+        recordingDestRef.current   = null;
+        recordingRemoteSrcs.current = {};
+      }
     };
     mr.stop();
   };
