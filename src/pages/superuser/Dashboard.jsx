@@ -73,16 +73,17 @@ export function Dashboard() {
 
     const token = sessionStorage.getItem("token");
     const headers = { Authorization: `Bearer ${token}` };
+    const tf = selectedTimeFilter.toLowerCase();
 
     Promise.all([
-      fetch(`${API_BASE}/api/superuser/realtime`, { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
-      fetch(`${API_BASE}/api/stats`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(`${API_BASE}/api/superuser/realtime?time_filter=${tf}`, { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)),
+      fetch(`${API_BASE}/api/stats?time_filter=${tf}`, { headers }).then(r => r.ok ? r.json() : null).catch(() => null),
       fetch(`${API_BASE}/api/calls`, { headers }).then(r => r.ok ? r.json() : []).catch(() => []),
     ])
       .then(([realtimeData, statsData, allCalls]) => {
         setDbAgents(realtimeData.agents || []);
         setDbBubbleAgents(realtimeData.bubbleAgents || []);
-        setDbSankey(realtimeData.allTimeSankey || realtimeData.sankey || { nodes: [], links: [] });
+        setDbSankey(realtimeData.sankey || { nodes: [], links: [] });
         
         // Calculate system-wide aggregates from allCalls
         const trueTotal = Array.isArray(allCalls) ? allCalls.length : 0;
@@ -104,7 +105,7 @@ export function Dashboard() {
         setError(String(err));
         if (!isSilent) setLoading(false);
       });
-  }, []);
+  }, [selectedTimeFilter]);
 
   // ---------------------------------------------------------------
   // SECTION: LIFECYCLE & INTERACTION HANDLERS
