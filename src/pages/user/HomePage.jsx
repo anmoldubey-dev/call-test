@@ -136,6 +136,12 @@ export default function HomePage() {
     <div style={{ padding: "38px 44px" }}>
       <CallbackNotification userEmail={currentUser.email || ""} />
 
+      <div style={{ marginBottom: 12 }}>
+        <button onClick={() => navigate("/welcome")} style={{ background: "none", border: "1px solid var(--border)", color: "var(--txt2)", borderRadius: 8, padding: "6px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+          ← Back to GreetAi
+        </button>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
           <h1 style={{ fontSize: 30, fontWeight: 800, marginBottom: 5 }}>
@@ -243,7 +249,7 @@ export default function HomePage() {
 
           <FCard style={{ padding: 20 }}>
             <SecTitle style={{ marginBottom: 14 }}>Resources</SecTitle>
-            <div style={{ ...listRow, cursor: "pointer" }} {...hoverItem}>
+            <div style={{ ...listRow, cursor: "pointer" }} {...hoverItem} onClick={() => navigate("/")}>
               <div style={iconBox}>🎓</div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 600, marginBottom: 2 }}>SR Comsoft</div>
