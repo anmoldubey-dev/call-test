@@ -177,6 +177,32 @@ const CallsTabView = ({ onCallClick }) => {
             </div>
           ))}
         </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Call Volume</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 16, height: 2, background: "#6366f1", borderRadius: 1 }} />
+              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1" }} />
+              <span style={{ fontSize: 11, color: "#64748b" }}>calls/day</span>
+            </div>
+            {maxCalls > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
+                <span style={{ fontSize: 11, color: "#64748b" }}>peak day</span>
+              </div>
+            )}
+          </div>
+          {chartPoints.length >= 2 && (() => {
+            const first = chartPoints[0].calls, last = chartPoints[chartPoints.length - 1].calls;
+            const pct = first === 0 ? 100 : Math.round(((last - first) / first) * 100);
+            const up = pct >= 0;
+            return (
+              <span style={{ fontSize: 12, fontWeight: 600, color: up ? "#22c55e" : "#ef4444", background: up ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", padding: "3px 10px", borderRadius: 6, border: `1px solid ${up ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
+                {up ? "↑" : "↓"} {Math.abs(pct)}% vs period start
+              </span>
+            );
+          })()}
+        </div>
         <div style={{ position: "relative", height: chartH + 30, display: "flex", gap: 6 }}>
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 28, minWidth: 32, alignItems: "flex-end" }}>
             {[maxCalls, Math.round(maxCalls * 0.75), Math.round(maxCalls * 0.5), Math.round(maxCalls * 0.25), 0].map(v => (
@@ -197,7 +223,8 @@ const CallsTabView = ({ onCallClick }) => {
               {chartPoints.map((p, i) => {
                 const x = (i / Math.max(chartPoints.length - 1, 1)) * chartW;
                 const y = chartH - (p.calls / maxCalls) * chartH;
-                return <circle key={i} cx={x} cy={y} r="4" fill="#6366f1" stroke="#0f172a" strokeWidth="2" />;
+                const isPeak = p.calls === maxCalls && maxCalls > 0;
+                return <circle key={i} cx={x} cy={y} r={isPeak ? 6 : 4} fill={isPeak ? "#f59e0b" : "#6366f1"} stroke="#0f172a" strokeWidth="2" />;
               })}
             </svg>
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
@@ -329,21 +356,44 @@ const ReportsTabView = () => {
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8, height: 140, alignItems: "flex-end" }}>
-          {(() => {
-            const maxDay = Math.max(...chartData.map(d => d.calls), 1);
-            return chartData.map((d, i) => {
-              const barH = Math.max((d.calls / maxDay) * 100, 4);
-              return (
-                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                  <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{d.calls ?? 0}</span>
-                  <div style={{ width: "70%", background: "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "4px 4px 0 0", height: barH, transition: "height 0.3s" }} />
-                  <span style={{ fontSize: 10, color: "#475569" }}>{d.date}</span>
-                </div>
-              );
-            });
-          })()}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Call Distribution</span>
+          <div style={{ display: "flex", gap: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(180deg,#f59e0b,#d97706)" }} />
+              <span style={{ fontSize: 11, color: "#64748b" }}>Peak day</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} />
+              <span style={{ fontSize: 11, color: "#64748b" }}>Calls</span>
+            </div>
+          </div>
         </div>
+        {(() => {
+          const maxDay = Math.max(...chartData.map(d => d.calls), 1);
+          return (
+            <div style={{ display: "flex", gap: 6 }}>
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 22, minWidth: 32, alignItems: "flex-end" }}>
+                {[maxDay, Math.round(maxDay * 0.5), 0].map(v => (
+                  <span key={v} style={{ fontSize: 10, color: "#475569" }}>{v}</span>
+                ))}
+              </div>
+              <div style={{ flex: 1, display: "flex", gap: 8, height: 140, alignItems: "flex-end" }}>
+                {chartData.map((d, i) => {
+                  const barH = Math.max((d.calls / maxDay) * 110, 4);
+                  const isPeak = d.calls === maxDay && maxDay > 1;
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isPeak ? "#f59e0b" : "#94a3b8" }}>{d.calls ?? 0}</span>
+                      <div title={`${d.date}: ${d.calls} calls`} style={{ width: "75%", background: isPeak ? "linear-gradient(180deg,#f59e0b,#d97706)" : "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "4px 4px 0 0", height: barH, transition: "height 0.3s" }} />
+                      <span style={{ fontSize: 10, color: isPeak ? "#f59e0b" : "#475569", fontWeight: isPeak ? 600 : 400 }}>{d.date}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
         {!loading && [
