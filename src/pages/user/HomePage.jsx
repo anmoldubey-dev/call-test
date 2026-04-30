@@ -36,9 +36,7 @@ import CallbackNotification from "../../components/UserDashboard/CallbackNotific
 // ---------------------------------------------------------------
 
 const QA = [
-  { icon: "⧖", t: "Conversational Pathways", d: "Design infinitely complex, branching flows...", page: "pathways" },
   { icon: "↗", t: "Live Browser Call", d: "Connect instantly with an AI Agent...", page: "sendCall" },
-  { icon: "⬡", t: "Send Bulk Calls", d: "Upload a CSV or JSON file to send out mass calls...", page: "batches" },
   { icon: "#", t: "Buy Phone Number", d: "Instantly purchase and configure a phone number...", page: null },
   { icon: "◑", t: "Voices & Voice Cloning", d: "View the voices you have access to...", page: "voices" },
   { icon: "◎", t: "Billing & Credits", d: "Purchase more credits to send out more calls...", page: "billing" },
@@ -136,8 +134,8 @@ export default function HomePage() {
     <div style={{ padding: "38px 44px" }}>
       <CallbackNotification userEmail={currentUser.email || ""} />
 
-      <div style={{ marginBottom: 12 }}>
-        <button onClick={() => navigate("/welcome")} style={{ background: "none", border: "1px solid var(--border)", color: "var(--txt2)", borderRadius: 8, padding: "6px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ marginBottom: 16 }}>
+        <button onClick={() => navigate("/welcome")} style={{ background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.4)", color: "var(--pur2)", borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit" }}>
           ← Back to GreetAi
         </button>
       </div>

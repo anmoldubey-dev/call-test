@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------
 // SECTION: IMPORTS
 // ---------------------------------------------------------------
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 
 // ---------------------------------------------------------------
 // SECTION: NAV CONFIG
@@ -53,6 +53,7 @@ const IMPL = [
 // SECTION: MAIN COMPONENT / EXPORT
 // ---------------------------------------------------------------
 export default function Sidebar({ user, onLogout }) {
+  const navigate = useNavigate()
 
   // ---------------------------------------------------------------
   // SECTION: RENDER
@@ -69,7 +70,7 @@ export default function Sidebar({ user, onLogout }) {
 
       {/* ── Logo ── */}
       <div style={{ padding: '22px 18px 17px', borderBottom: '1px solid var(--bdr)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800 }}>
+        <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, cursor: 'pointer' }}>
           <div style={{
             width: 36, height: 36, borderRadius: 9,
             background: 'linear-gradient(135deg,var(--pur),var(--acc))',
