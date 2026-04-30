@@ -54,14 +54,14 @@ import { useNavigate, useLocation } from "react-router-dom";
 // SECTION: 1. 3D BUBBLE CHART COMPONENTS
 // ===============================================================
 
-function Bubble({ position, size, color, agent, onClick, onHover, isHovered }) {
+function Bubble({ position, size, color, agent, onClick, onHover, isHovered, index = 0 }) {
   const meshRef = useRef();
   const [localHover, setLocalHover] = useState(false);
 
   useFrame((state) => {
     if (meshRef.current) {
       const t = state.clock.elapsedTime;
-      meshRef.current.position.y = position[1] + Math.sin(t + agent.id) * 0.1;
+      meshRef.current.position.y = position[1] + Math.sin(t + index) * 0.1;
       const targetScale = isHovered || localHover ? 1.4 : 1;
       meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
     }
@@ -138,7 +138,7 @@ function Scene3D({ agents, onBubbleClick, hoveredAgent, setHoveredAgent, interac
   const riskLevel = (agent.riskLevel || agent.risklevel || "low").toLowerCase();
   const color     = riskLevel.includes("high") ? "#EF4444" : riskLevel.includes("medium") ? "#F59E0B" : "#10B981";
 
-  return { position: [x, y, z], size, color, agent, isHovered: hoveredAgent?.id === agent.id };
+  return { position: [x, y, z], size, color, agent, isHovered: hoveredAgent?.id === agent.id, index: i };
 });
   }, [agents, hoveredAgent]);
 
