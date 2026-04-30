@@ -53,40 +53,19 @@ const toPercent = (n, total) => (total ? Math.round((n / total) * 100) : 0);
 // SECTION: ATOMIC VISUAL MODULES
 // ---------------------------------------------------------------
 
-const DonutCard = ({ chart }) => {
-  // Initialization -> DonutCard()-> Renders SVG-based categorical distributions
-  const r = 38, cx = 50, cy = 50;
-  let cum = 0;
-  const arcs = chart.segments.map((seg) => { const s = cum; cum += seg.pct; return { ...seg, start: s, end: cum }; });
-
-  return (
-    <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 16 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.07em", textTransform: "uppercase", marginBottom: 12 }}>{chart.label}</div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <svg viewBox="0 0 100 100" width={70} height={70}>
-          <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
-          {arcs.map((arc, i) => {
-            const sa = ((arc.start / 100) * 360 - 90) * (Math.PI / 180);
-            const ea = ((arc.end / 100) * 360 - 90) * (Math.PI / 180);
-            const x1 = cx + r * Math.cos(sa), y1 = cy + r * Math.sin(sa);
-            const x2 = cx + r * Math.cos(ea), y2 = cy + r * Math.sin(ea);
-            return <path key={i} d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${arc.pct > 50 ? 1 : 0} 1 ${x2} ${y2} Z`} fill={arc.color} opacity={0.85} />;
-          })}
-          <circle cx={cx} cy={cy} r={r - 8} fill="#0f172a" />
-        </svg>
-        <div style={{ flex: 1 }}>
-          {arcs.map((arc, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-              <span style={{ width: 7, height: 7, borderRadius: "50%", background: arc.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 10, color: "#64748b", flex: 1 }}>{arc.legend}</span>
-              <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{arc.pct}%</span>
-            </div>
-          ))}
-        </div>
-      </div>
+const ProgressMetric = ({ icon, label, pct, count, color }) => (
+  <div style={{ marginBottom: 13 }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
+      <span style={{ fontSize: 13, color: "#cbd5e1" }}>{icon} {label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color }}>
+        {pct}%<span style={{ fontWeight: 400, color: "#64748b", fontSize: 12 }}>{count !== undefined ? ` (${count})` : ""}</span>
+      </span>
     </div>
-  );
-};
+    <div style={{ height: 7, background: "rgba(255,255,255,0.06)", borderRadius: 4 }}>
+      <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: color, borderRadius: 4, transition: "width 0.5s ease" }} />
+    </div>
+  </div>
+);
 
 // ---------------------------------------------------------------
 // SECTION: TABULAR DATA MODULES (API SYNC)
@@ -110,31 +89,32 @@ const CallsTabView = ({ onCallClick }) => {
 
   const periodMap = { today: "Today", last_week: "Last week", last_month: "Last month" };
 
-  const summaryStats = data ? [
-    { label: "TOTAL CALLS", value: data.summary.total_calls },
-    { label: "TOTAL COST", value: `$${data.summary.total_cost.toFixed(2)}` },
-    { label: "AVG DURATION", value: fmtDur(Math.round(data.summary.avg_duration_seconds)) },
-    { label: "TOTAL TRANSFERS", value: data.summary.total_transfers },
-    { label: "ISSUES", value: data.summary.total_issues },
-  ] : Array(5).fill(null).map((_, i) => ({ label: ["TOTAL CALLS", "TOTAL COST", "AVG DURATION", "TOTAL TRANSFERS", "ISSUES"][i], value: "—" }));
-
   const chartPoints = data?.chart || [];
   const maxCalls = Math.max(...chartPoints.map(p => p.calls), 1);
-  const chartH = 140, chartW = 820;
-  const pts = chartPoints.map((p, i) => {
-    const x = (i / Math.max(chartPoints.length - 1, 1)) * chartW;
-    const y = chartH - (p.calls / maxCalls) * chartH;
-    return `${x},${y}`;
-  });
-  const areaPath = pts.length > 0 ? `M0,${chartH} L${pts.join(" L")} L${chartW},${chartH} Z` : "";
-  const xLabels = chartPoints.map(p => p.date);
 
-  const donutCharts = data ? [
-    { label: "Call Outcomes", segments: [{ color: "#22c55e", pct: toPercent(data.outcomes.completed, data.summary.total_calls), legend: "Completed" }, { color: "#a855f7", pct: toPercent(data.outcomes.voicemail, data.summary.total_calls), legend: "Voicemail" }, { color: "#ef4444", pct: toPercent(data.outcomes.failed, data.summary.total_calls), legend: "Failed" }] },
-    { label: "Avg Duration Dist.", segments: [{ color: "#3b82f6", pct: toPercent(data.duration_dist.under_2min, data.summary.total_calls), legend: "< 2 min" }, { color: "#8b5cf6", pct: toPercent(data.duration_dist.two_to_5min, data.summary.total_calls), legend: "2–5 min" }, { color: "#06b6d4", pct: toPercent(data.duration_dist.over_5min, data.summary.total_calls), legend: "> 5 min" }] },
-    { label: "Cost Breakdown", segments: [{ color: "#f59e0b", pct: 60, legend: "AI Usage" }, { color: "#d97706", pct: 25, legend: "Telephony" }, { color: "#fbbf24", pct: 15, legend: "Other" }] },
-    { label: "Transfers", segments: [{ color: "#64748b", pct: 70, legend: "No Transfer" }, { color: "#3b82f6", pct: 30, legend: "Transferred" }] },
-  ] : [];
+  const volumeTrend = (() => {
+    if (chartPoints.length < 2) return null;
+    const mid = Math.floor(chartPoints.length / 2);
+    const avg1 = chartPoints.slice(0, mid).reduce((s, p) => s + p.calls, 0) / Math.max(mid, 1);
+    const avg2 = chartPoints.slice(mid).reduce((s, p) => s + p.calls, 0) / Math.max(chartPoints.length - mid, 1);
+    return avg1 === 0 ? 0 : Math.round(((avg2 - avg1) / avg1) * 100);
+  })();
+
+  const completionPct = (data && data.summary?.total_calls > 0)
+    ? toPercent(data.outcomes?.completed ?? 0, data.summary.total_calls)
+    : null;
+  const health = completionPct === null ? null
+    : completionPct >= 70 ? { label: "Performing Well", color: "#22c55e", bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.2)", icon: "✅", desc: `${completionPct}% of calls completed — your AI is performing well.` }
+    : completionPct >= 50 ? { label: "Needs Attention", color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.2)", icon: "⚠", desc: `${completionPct}% completion rate — review your failed calls.` }
+    : { label: "Needs Immediate Attention", color: "#ef4444", bg: "rgba(239,68,68,0.08)", border: "rgba(239,68,68,0.2)", icon: "✕", desc: `Only ${completionPct}% completion — check your call configuration.` };
+
+  const summaryStats = data ? [
+    { label: "TOTAL CALLS", value: data.summary.total_calls, trend: volumeTrend },
+    { label: "TOTAL COST", value: `$${data.summary.total_cost.toFixed(2)}`, trend: null },
+    { label: "AVG DURATION", value: fmtDur(Math.round(data.summary.avg_duration_seconds)), trend: null },
+    { label: "TOTAL TRANSFERS", value: data.summary.total_transfers, trend: null },
+    { label: "ISSUES", value: data.summary.total_issues, trend: null },
+  ] : Array(5).fill(null).map((_, i) => ({ label: ["TOTAL CALLS", "TOTAL COST", "AVG DURATION", "TOTAL TRANSFERS", "ISSUES"][i], value: "—", trend: null }));
 
   const calls = data?.calls || [];
   const visibleCols = [
@@ -148,6 +128,19 @@ const CallsTabView = ({ onCallClick }) => {
 
   return (
     <div>
+      {health && !loading && (
+        <div style={{ background: health.bg, border: `1px solid ${health.border}`, borderRadius: 12, padding: "14px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 16 }}>
+          <span style={{ fontSize: 22 }}>{health.icon}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: health.color, marginBottom: 2 }}>{health.label}</div>
+            <div style={{ fontSize: 12, color: "#64748b" }}>{health.desc}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 30, fontWeight: 800, color: health.color, lineHeight: 1 }}>{completionPct}%</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>completion rate</div>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           {Object.entries(periodMap).map(([k, label]) => (
@@ -173,70 +166,80 @@ const CallsTabView = ({ onCallClick }) => {
           {summaryStats.map((s, i) => (
             <div key={s.label} style={{ flex: 1, borderRight: i < summaryStats.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none", paddingRight: i < summaryStats.length - 1 ? 24 : 0, paddingLeft: i > 0 ? 24 : 0 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>{s.label}</div>
-              <span style={{ fontSize: 24, fontWeight: 700, color: "#f1f5f9" }}>{loading ? "—" : s.value}</span>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginTop: 2 }}>
+                <span style={{ fontSize: 24, fontWeight: 700, color: "#f1f5f9" }}>{loading ? "—" : s.value}</span>
+                {!loading && s.trend !== null && s.trend !== undefined && (
+                  <span style={{ fontSize: 11, fontWeight: 600, color: s.trend > 0 ? "#22c55e" : s.trend < 0 ? "#ef4444" : "#64748b" }}>
+                    {s.trend > 0 ? `↑ ${s.trend}%` : s.trend < 0 ? `↓ ${Math.abs(s.trend)}%` : "→"}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Call Volume</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 16, height: 2, background: "#6366f1", borderRadius: 1 }} />
-              <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#6366f1" }} />
-              <span style={{ fontSize: 11, color: "#64748b" }}>calls/day</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Call Volume</span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#6366f1", display: "inline-block" }} /> Calls</span>
+              <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#f59e0b", display: "inline-block" }} /> Peak day</span>
             </div>
-            {maxCalls > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
-                <span style={{ fontSize: 11, color: "#64748b" }}>peak day</span>
-              </div>
-            )}
           </div>
-          {chartPoints.length >= 2 && (() => {
-            const first = chartPoints[0].calls, last = chartPoints[chartPoints.length - 1].calls;
-            const pct = first === 0 ? 100 : Math.round(((last - first) / first) * 100);
-            const up = pct >= 0;
-            return (
-              <span style={{ fontSize: 12, fontWeight: 600, color: up ? "#22c55e" : "#ef4444", background: up ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", padding: "3px 10px", borderRadius: 6, border: `1px solid ${up ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}` }}>
-                {up ? "↑" : "↓"} {Math.abs(pct)}% vs period start
-              </span>
-            );
-          })()}
+          {volumeTrend !== null && (
+            <span style={{ fontSize: 12, fontWeight: 600, color: volumeTrend > 0 ? "#22c55e" : volumeTrend < 0 ? "#ef4444" : "#64748b", background: volumeTrend > 0 ? "rgba(34,197,94,0.1)" : volumeTrend < 0 ? "rgba(239,68,68,0.1)" : "rgba(100,116,139,0.1)", padding: "3px 10px", borderRadius: 6, border: `1px solid ${volumeTrend > 0 ? "rgba(34,197,94,0.2)" : volumeTrend < 0 ? "rgba(239,68,68,0.2)" : "rgba(100,116,139,0.2)"}` }}>
+              {volumeTrend > 0 ? `↑ ${volumeTrend}% up` : volumeTrend < 0 ? `↓ ${Math.abs(volumeTrend)}% down` : "→ Stable"} this period
+            </span>
+          )}
         </div>
-        <div style={{ position: "relative", height: chartH + 30, display: "flex", gap: 6 }}>
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 28, minWidth: 32, alignItems: "flex-end" }}>
-            {[maxCalls, Math.round(maxCalls * 0.75), Math.round(maxCalls * 0.5), Math.round(maxCalls * 0.25), 0].map(v => (
+        <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 22, minWidth: 32, alignItems: "flex-end" }}>
+            {[maxCalls, Math.round(maxCalls * 0.5), 0].map(v => (
               <span key={v} style={{ fontSize: 10, color: "#475569" }}>{v}</span>
             ))}
           </div>
-          <div style={{ flex: 1, position: "relative" }}>
-            <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" style={{ width: "100%", height: chartH, display: "block" }}>
-              <defs>
-                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
-                </linearGradient>
-              </defs>
-              {[0.25, 0.5, 0.75, 1].map(f => <line key={f} x1="0" y1={chartH * (1 - f)} x2={chartW} y2={chartH * (1 - f)} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />)}
-              {areaPath && <path d={areaPath} fill="url(#areaGrad)" />}
-              {pts.length > 1 && <polyline points={pts.join(" ")} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
-              {chartPoints.map((p, i) => {
-                const x = (i / Math.max(chartPoints.length - 1, 1)) * chartW;
-                const y = chartH - (p.calls / maxCalls) * chartH;
-                const isPeak = p.calls === maxCalls && maxCalls > 0;
-                return <circle key={i} cx={x} cy={y} r={isPeak ? 6 : 4} fill={isPeak ? "#f59e0b" : "#6366f1"} stroke="#0f172a" strokeWidth="2" />;
-              })}
-            </svg>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-              {xLabels.map(l => <span key={l} style={{ fontSize: 11, color: "#475569" }}>{l}</span>)}
-            </div>
+          <div style={{ flex: 1, display: "flex", gap: 4, height: 140, alignItems: "flex-end" }}>
+            {chartPoints.map((p, i) => {
+              const barH = Math.max((p.calls / maxCalls) * 120, 4);
+              const isPeak = p.calls === maxCalls && maxCalls > 0;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: isPeak ? "#f59e0b" : "#64748b" }}>{p.calls}</span>
+                  <div title={`${p.date}: ${p.calls} calls`} style={{ width: "80%", height: barH, background: isPeak ? "linear-gradient(180deg,#f59e0b,#d97706)" : "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                  <span style={{ fontSize: 10, color: isPeak ? "#f59e0b" : "#475569", fontWeight: isPeak ? 600 : 400 }}>{p.date}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {donutCharts.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 16 }}>
-          {donutCharts.map(c => <DonutCard key={c.label} chart={c} />)}
+      {data && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 16 }}>
+          <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>Call Resolution</div>
+            <ProgressMetric icon="✅" label="Completed" pct={toPercent(data.outcomes.completed, data.summary.total_calls)} count={data.outcomes.completed} color="#22c55e" />
+            <ProgressMetric icon="📭" label="Voicemail" pct={toPercent(data.outcomes.voicemail, data.summary.total_calls)} count={data.outcomes.voicemail} color="#f59e0b" />
+            <ProgressMetric icon="❌" label="Failed" pct={toPercent(data.outcomes.failed, data.summary.total_calls)} count={data.outcomes.failed} color="#ef4444" />
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12, marginTop: 2 }}>
+              <ProgressMetric icon="↗" label="Transferred" pct={toPercent(data.summary.total_transfers, data.summary.total_calls)} count={data.summary.total_transfers} color="#3b82f6" />
+            </div>
+          </div>
+          <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>Call Efficiency</div>
+            <ProgressMetric icon="⚡" label="Under 2 min" pct={toPercent(data.duration_dist.under_2min, data.summary.total_calls)} count={data.duration_dist.under_2min} color="#22c55e" />
+            <ProgressMetric icon="⏱" label="2 – 5 min" pct={toPercent(data.duration_dist.two_to_5min, data.summary.total_calls)} count={data.duration_dist.two_to_5min} color="#f59e0b" />
+            <ProgressMetric icon="🕐" label="Over 5 min" pct={toPercent(data.duration_dist.over_5min, data.summary.total_calls)} count={data.duration_dist.over_5min} color="#6366f1" />
+            <div style={{ borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 12, marginTop: 2 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+                <span style={{ fontSize: 12, color: "#64748b" }}>Avg Duration</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>{fmtDur(Math.round(data.summary.avg_duration_seconds))}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ fontSize: 12, color: "#64748b" }}>Total Cost</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8" }}>${data.summary.total_cost.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -356,21 +359,19 @@ const ReportsTabView = () => {
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Daily Call Distribution</span>
-          <div style={{ display: "flex", gap: 14 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: "linear-gradient(180deg,#f59e0b,#d97706)" }} />
-              <span style={{ fontSize: 11, color: "#64748b" }}>Peak day</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 10, height: 10, borderRadius: 2, background: "#6366f1" }} />
-              <span style={{ fontSize: 11, color: "#64748b" }}>Calls</span>
-            </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+          <div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em" }}>Calls by Day of Week</span>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 3 }}>Compare volume across each day in the selected period</div>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#22c55e", display: "inline-block" }} /> Calls</span>
+            <span style={{ fontSize: 11, color: "#64748b", display: "flex", alignItems: "center", gap: 4 }}><span style={{ width: 9, height: 9, borderRadius: 2, background: "#f59e0b", display: "inline-block" }} /> Peak</span>
           </div>
         </div>
         {(() => {
           const maxDay = Math.max(...chartData.map(d => d.calls), 1);
+          const dayName = (dateStr) => { try { return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short" }); } catch { return dateStr; } };
           return (
             <div style={{ display: "flex", gap: 6 }}>
               <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 22, minWidth: 32, alignItems: "flex-end" }}>
@@ -378,15 +379,16 @@ const ReportsTabView = () => {
                   <span key={v} style={{ fontSize: 10, color: "#475569" }}>{v}</span>
                 ))}
               </div>
-              <div style={{ flex: 1, display: "flex", gap: 8, height: 140, alignItems: "flex-end" }}>
+              <div style={{ flex: 1, display: "flex", gap: 6, height: 160, alignItems: "flex-end" }}>
                 {chartData.map((d, i) => {
-                  const barH = Math.max((d.calls / maxDay) * 110, 4);
+                  const barH = Math.max((d.calls / maxDay) * 130, 4);
                   const isPeak = d.calls === maxDay && maxDay > 1;
+                  const day = dayName(d.date);
                   return (
                     <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: isPeak ? "#f59e0b" : "#94a3b8" }}>{d.calls ?? 0}</span>
-                      <div title={`${d.date}: ${d.calls} calls`} style={{ width: "75%", background: isPeak ? "linear-gradient(180deg,#f59e0b,#d97706)" : "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "4px 4px 0 0", height: barH, transition: "height 0.3s" }} />
-                      <span style={{ fontSize: 10, color: isPeak ? "#f59e0b" : "#475569", fontWeight: isPeak ? 600 : 400 }}>{d.date}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isPeak ? "#f59e0b" : "#64748b" }}>{d.calls ?? 0}</span>
+                      <div title={`${day} (${d.date}): ${d.calls} calls`} style={{ width: "70%", height: barH, background: isPeak ? "linear-gradient(180deg,#f59e0b,#d97706)" : "linear-gradient(180deg,#22c55e,#16a34a)", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} />
+                      <span style={{ fontSize: 10, fontWeight: isPeak ? 700 : 400, color: isPeak ? "#f59e0b" : "#64748b" }}>{day}</span>
                     </div>
                   );
                 })}
@@ -395,16 +397,22 @@ const ReportsTabView = () => {
           );
         })()}
       </div>
+      {data && (
+        <div style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>Performance Breakdown</div>
+          <ProgressMetric icon="✅" label="Success Rate" pct={data.success_rate ?? 0} color="#22c55e" />
+          <ProgressMetric icon="❌" label="Issues Rate" pct={data.total_calls > 0 ? Math.round((data.issues / data.total_calls) * 100) : 0} count={data.issues} color="#ef4444" />
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
         {!loading && [
-          ["TOTAL CALLS", String(data?.total_calls ?? 0), ""],
-          ["AVG DURATION", fmtDur(Math.round(data?.avg_duration_seconds ?? 0)), ""],
-          ["SUCCESS RATE", `${data?.success_rate ?? 0}%`, ""],
-        ].map(([l, v, s]) => (
+          ["TOTAL CALLS", String(data?.total_calls ?? 0)],
+          ["AVG DURATION", fmtDur(Math.round(data?.avg_duration_seconds ?? 0))],
+          ["SUCCESS RATE", `${data?.success_rate ?? 0}%`],
+        ].map(([l, v]) => (
           <div key={l} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 16 }}>
             <div style={{ fontSize: 10, fontWeight: 700, color: "#475569", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>{l}</div>
             <div style={{ fontSize: 28, fontWeight: 700, color: "#f1f5f9", marginBottom: 4 }}>{v}</div>
-            <div style={{ fontSize: 11, color: "#64748b" }}>{s}</div>
           </div>
         ))}
       </div>
