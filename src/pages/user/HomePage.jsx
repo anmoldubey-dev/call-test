@@ -37,7 +37,7 @@ import CallbackNotification from "../../components/UserDashboard/CallbackNotific
 
 const QA = [
   { icon: "↗", t: "Live Browser Call", d: "Connect instantly with an AI Agent...", page: "sendCall" },
-  { icon: "#", t: "Buy Phone Number", d: "Instantly purchase and configure a phone number...", page: null },
+  { icon: "⬡", t: "Send a Call", d: "Dial any number and connect via an AI-powered voice agent.", page: "outbound" },
   { icon: "◑", t: "Voices & Voice Cloning", d: "View the voices you have access to...", page: "voices" },
   { icon: "◎", t: "Billing & Credits", d: "Purchase more credits to send out more calls...", page: "billing" },
 ];
@@ -110,7 +110,7 @@ export default function HomePage() {
       setShowIVRBuilder(true);
       return;
     }
-    const routes = { batches: "/user/batches", voices: "/user/voices", billing: "/user/billing" };
+    const routes = { batches: "/user/batches", voices: "/user/voices", billing: "/user/billing", outbound: "/user/send-call" };
     navigate(routes[page] || "/user");
   };
 

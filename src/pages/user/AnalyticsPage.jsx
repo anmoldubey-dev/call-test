@@ -177,20 +177,32 @@ const CallsTabView = ({ onCallClick }) => {
             </div>
           ))}
         </div>
-        <div style={{ position: "relative", height: chartH + 30 }}>
-          <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" style={{ width: "100%", height: chartH, display: "block" }}>
-            <defs>
-              <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#94a3b8" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.02" />
-              </linearGradient>
-            </defs>
-            {[0.25, 0.5, 0.75, 1].map(f => <line key={f} x1="0" y1={chartH * (1 - f)} x2={chartW} y2={chartH * (1 - f)} stroke="rgba(255,255,255,0.04)" strokeWidth="1" />)}
-            {areaPath && <path d={areaPath} fill="url(#areaGrad)" />}
-            {pts.length > 1 && <polyline points={pts.join(" ")} fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />}
-          </svg>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-            {xLabels.map(l => <span key={l} style={{ fontSize: 11, color: "#475569" }}>{l}</span>)}
+        <div style={{ position: "relative", height: chartH + 30, display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", paddingBottom: 28, minWidth: 32, alignItems: "flex-end" }}>
+            {[maxCalls, Math.round(maxCalls * 0.75), Math.round(maxCalls * 0.5), Math.round(maxCalls * 0.25), 0].map(v => (
+              <span key={v} style={{ fontSize: 10, color: "#475569" }}>{v}</span>
+            ))}
+          </div>
+          <div style={{ flex: 1, position: "relative" }}>
+            <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" style={{ width: "100%", height: chartH, display: "block" }}>
+              <defs>
+                <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6366f1" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
+                </linearGradient>
+              </defs>
+              {[0.25, 0.5, 0.75, 1].map(f => <line key={f} x1="0" y1={chartH * (1 - f)} x2={chartW} y2={chartH * (1 - f)} stroke="rgba(255,255,255,0.07)" strokeWidth="1" />)}
+              {areaPath && <path d={areaPath} fill="url(#areaGrad)" />}
+              {pts.length > 1 && <polyline points={pts.join(" ")} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />}
+              {chartPoints.map((p, i) => {
+                const x = (i / Math.max(chartPoints.length - 1, 1)) * chartW;
+                const y = chartH - (p.calls / maxCalls) * chartH;
+                return <circle key={i} cx={x} cy={y} r="4" fill="#6366f1" stroke="#0f172a" strokeWidth="2" />;
+              })}
+            </svg>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+              {xLabels.map(l => <span key={l} style={{ fontSize: 11, color: "#475569" }}>{l}</span>)}
+            </div>
           </div>
         </div>
       </div>
@@ -317,20 +329,20 @@ const ReportsTabView = () => {
             </div>
           ))}
         </div>
-        <div style={{ display: "flex", gap: 8, height: 120, alignItems: "flex-end" }}>
-          {chartData.map((d, i) => {
-            const total = data?.total_calls || 1;
-            const h = Math.max((d.calls / total) * 100 * chartData.length, 4);
-            return (
-              <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                  <div style={{ width: "70%", background: "#22c55e", borderRadius: "4px 4px 0 0", height: Math.min(h * 0.85, 90) }} />
-                  <div style={{ width: "70%", background: "#ef4444", height: Math.max(h * 0.15, 4) }} />
+        <div style={{ display: "flex", gap: 8, height: 140, alignItems: "flex-end" }}>
+          {(() => {
+            const maxDay = Math.max(...chartData.map(d => d.calls), 1);
+            return chartData.map((d, i) => {
+              const barH = Math.max((d.calls / maxDay) * 100, 4);
+              return (
+                <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                  <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 600 }}>{d.calls ?? 0}</span>
+                  <div style={{ width: "70%", background: "linear-gradient(180deg,#6366f1,#4f46e5)", borderRadius: "4px 4px 0 0", height: barH, transition: "height 0.3s" }} />
+                  <span style={{ fontSize: 10, color: "#475569" }}>{d.date}</span>
                 </div>
-                <span style={{ fontSize: 10, color: "#475569" }}>{d.date}</span>
-              </div>
-            );
-          })}
+              );
+            });
+          })()}
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 16 }}>
